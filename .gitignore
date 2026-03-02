@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+
+# Virtual environment
+.venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# SQLite database (chroma)
+api_db/
+
+# MacOS
+.DS_Store
+
+# Logs
+*.log
+
+# dotenv
+.env
+
+# Python virtual environment
+.venv/
+
+# pip cache
+pip-log.txt
+
+# mypy
+.mypy_cache/
+
+# coverage
+htmlcov/
+.coverage
+
+# static analysis
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/

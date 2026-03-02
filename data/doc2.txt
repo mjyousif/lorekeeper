@@ -1,0 +1,1 @@
+ChromaDB is a vector database that is used for storing and retrieving vector embeddings. It is open-source and can be run in-memory or as a client-server application. It is useful for building applications that require semantic search or retrieval-augmented generation (RAG).
