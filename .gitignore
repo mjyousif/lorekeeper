@@ -1,51 +1,67 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
-*.pdb
 
-# Virtual environment
-.venv/
-env/
-ENV/
+# C extensions
+*.so
 
 # Distribution / packaging
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# IDEs and editors
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Local databases
+*.db
+*.sqlite3
+api_db/
+local_db/
+
+# PyInstaller
+#  Usually these files are created by a PyInstaller script from a 'spec' file
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# IDE settings
 .vscode/
 .idea/
 
-# SQLite database (chroma)
-api_db/
-
-# MacOS
+# OS-specific
 .DS_Store
-
-# Logs
-*.log
-
-# dotenv
-.env
-
-# Python virtual environment
-.venv/
-
-# pip cache
-pip-log.txt
-
-# mypy
-.mypy_cache/
-
-# coverage
-htmlcov/
-.coverage
-
-# static analysis
-.pytest_cache/
-
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
+Thumbs.db
