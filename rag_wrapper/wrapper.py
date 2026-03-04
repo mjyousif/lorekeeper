@@ -68,7 +68,7 @@ class RAGWrapper:
 
         return results
 
-    def _scan_files(self) -> dict[str, tuple[Float, int]]:
+    def _scan_files(self) -> dict[str, tuple[float, int]]:
         """Scan the current set of data files (resolving the original spec) and return a dict of path → (mtime, size)."""
         manifest: dict[str, tuple[Float, int]] = {}
         current_files = self._resolve_files(self._file_spec)
