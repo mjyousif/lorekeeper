@@ -35,6 +35,7 @@ class RAGWrapper:
         self.llm_api_base = llm_api_base or os.getenv("OPENROUTER_API_BASE") or os.getenv("LLM_API_BASE")
 
         # Track data file manifest for auto‑rebuild
+        self._file_spec = files  # keep original spec to re‑discover files later
         self._manifest: dict[str, tuple[float, int]] = {}  # path → (mtime, size)
         # After initial embedding, record the current state
         self._manifest = self._scan_files()
@@ -67,10 +68,11 @@ class RAGWrapper:
 
         return results
 
-    def _scan_files(self) -> dict[str, tuple[float, int]]:
-        """Scan configured data files and return a dict of path → (mtime, size)."""
-        manifest: dict[str, tuple[float, int]] = {}
-        for path in self.files:
+    def _scan_files(self) -> dict[str, tuple[Float, int]]:
+        """Scan the current set of data files (resolving the original spec) and return a dict of path → (mtime, size)."""
+        manifest: dict[str, tuple[Float, int]] = {}
+        current_files = self._resolve_files(self._file_spec)
+        for path in current_files:
             try:
                 stat = os.stat(path)
                 manifest[path] = (stat.st_mtime, stat.st_size)
@@ -97,6 +99,8 @@ class RAGWrapper:
         except Exception:
             pass  # collection may not exist
         self.collection = self.client.get_or_create_collection(name="rag_collection")
+        # Refresh the file list to include any new/removed files
+        self.files = self._resolve_files(self._file_spec)
         self._load_and_embed_files(force=True)
         self._manifest = self._scan_files()
         print("Index rebuild complete.")
