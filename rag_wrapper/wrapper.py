@@ -34,6 +34,11 @@ class RAGWrapper:
         self.llm_api_key = llm_api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("LLM_API_KEY")
         self.llm_api_base = llm_api_base or os.getenv("OPENROUTER_API_BASE") or os.getenv("LLM_API_BASE")
 
+        # Track data file manifest for auto‑rebuild
+        self._manifest: dict[str, tuple[float, int]] = {}  # path → (mtime, size)
+        # After initial embedding, record the current state
+        self._manifest = self._scan_files()
+
 
     def _resolve_files(self, input_paths: list[str] | str) -> list[str]:
         """Return a flat list of readable files.
@@ -62,12 +67,48 @@ class RAGWrapper:
 
         return results
 
-    def _load_and_embed_files(self):
-        """Loads files, chunks them, and stores them in the vector DB."""
-        if self.collection.count() > 0:
+    def _scan_files(self) -> dict[str, tuple[float, int]]:
+        """Scan configured data files and return a dict of path → (mtime, size)."""
+        manifest: dict[str, tuple[float, int]] = {}
+        for path in self.files:
+            try:
+                stat = os.stat(path)
+                manifest[path] = (stat.st_mtime, stat.st_size)
+            except Exception as e:
+                print(f"Warning: cannot stat {path}: {e}")
+        return manifest
+
+    def _needs_rebuild(self) -> bool:
+        """Compare current files against the stored manifest."""
+        current = self._scan_files()
+        # Simple comparison: if set of paths or their (mtime,size) differ => rebuild
+        if set(current.keys()) != set(self._manifest.keys()):
+            return True
+        for path, info in current.items():
+            if info != self._manifest.get(path):
+                return True
+        return False
+
+    def _rebuild_index(self):
+        """Delete the collection and re‑embed all files from scratch."""
+        print("Data changes detected. Rebuilding index...")
+        try:
+            self.client.delete_collection(name="rag_collection")
+        except Exception:
+            pass  # collection may not exist
+        self.collection = self.client.get_or_create_collection(name="rag_collection")
+        self._load_and_embed_files(force=True)
+        self._manifest = self._scan_files()
+        print("Index rebuild complete.")
+
+    def _load_and_embed_files(self, force: bool = False):
+        """Loads files, chunks them, and stores them in the vector DB.
+
+        Args:
+            force: If True, embed regardless of whether the collection is non‑empty.
+        """
+        if not force and self.collection.count() > 0:
             print("Collection already contains documents. Skipping embedding process.")
-            # In a real application, you might want to check if the files have changed
-            # and update the collection accordingly.
             return
 
         print("Loading and embedding files...")
@@ -128,6 +169,10 @@ class RAGWrapper:
         Handles the chat logic: retrieves context, manages history,
         calls the LLM via LiteLLM, and returns the response.
         """
+        # 0. Rebuild index if underlying data files have changed
+        if self._needs_rebuild():
+            self._rebuild_index()
+
         # 1. Retrieve relevant context
         context = self.get_relevant_context(message)
         context_str = "\n---\n".join(context) if context else "No relevant context found."
