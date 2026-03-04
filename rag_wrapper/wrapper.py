@@ -24,9 +24,6 @@ class RAGWrapper:
         self.collection = self.client.get_or_create_collection(name="rag_collection")
         self._load_and_embed_files()
 
-        # Session history per session_id
-        self.sessions: dict[str, list[dict]] = {}
-
         # LLM configuration: prefer explicit args, else environment
         self.llm_model = llm_model or os.getenv(
             "OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free"
@@ -57,7 +54,7 @@ class RAGWrapper:
 
         for path in input_paths:
             if os.path.isdir(path):
-                for root, _, files in os.walk(path):
+                for root, _, files in os.walk(path, followlinks=True):
                     for fname in files:
                         if fname.lower().endswith(allowed):
                             results.append(os.path.join(root, fname))
