@@ -36,6 +36,13 @@ env/
 *.sqlite3
 api_db/
 local_db/
+fresh_db/
+
+# Chroma database files (binary index files)
+**/data_level0.bin
+**/header.bin
+**/length.bin
+**/link_lists.bin
 
 # PyInstaller
 #  Usually these files are created by a PyInstaller script from a 'spec' file
