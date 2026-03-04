@@ -3,10 +3,18 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from pypdf import PdfReader
 import uuid
+import litellm
 
 
 class RAGWrapper:
-    def __init__(self, files: list[str] | str, db_path: str = "db"):
+    def __init__(
+        self,
+        files: list[str] | str,
+        db_path: str = "db",
+        llm_model: str = None,
+        llm_api_key: str = None,
+        llm_api_base: str = None,
+    ):
         # support passing a single directory or list of files/dirs; build a
         # concrete list of files to embed
         self.files = self._resolve_files(files)
@@ -15,6 +23,17 @@ class RAGWrapper:
         self.client = chromadb.PersistentClient(path=self.db_path)
         self.collection = self.client.get_or_create_collection(name="rag_collection")
         self._load_and_embed_files()
+
+        # Session history per session_id
+        self.sessions: dict[str, list[dict]] = {}
+
+        # LLM configuration: prefer explicit args, else environment
+        self.llm_model = llm_model or os.getenv(
+            "OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free"
+        )
+        self.llm_api_key = llm_api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("LLM_API_KEY")
+        self.llm_api_base = llm_api_base or os.getenv("OPENROUTER_API_BASE") or os.getenv("LLM_API_BASE")
+
 
     def _resolve_files(self, input_paths: list[str] | str) -> list[str]:
         """Return a flat list of readable files.
@@ -104,41 +123,55 @@ class RAGWrapper:
         results = self.collection.query(query_texts=[message], n_results=n_results)
         return results["documents"][0] if results["documents"] else []
 
-    def chat(self, session_id: str, message: str):
+    def chat(self, session_id: str, message: str) -> dict:
         """
-        Handles the chat logic: retrieves context, gets LLM response.
-        (LLM call is not implemented yet).
+        Handles the chat logic: retrieves context, manages history,
+        calls the LLM via LiteLLM, and returns the response.
         """
-        # 1. Retrieve relevant context from the vector DB
+        # 1. Retrieve relevant context
         context = self.get_relevant_context(message)
+        context_str = "\n---\n".join(context) if context else "No relevant context found."
 
-        # 2. (TODO) Manage conversation history for the session_id
+        # 2. Manage conversation history
+        if session_id not in self.sessions:
+            self.sessions[session_id] = []
+        history = self.sessions[session_id]
 
-        # 3. (TODO) Build the prompt for the LLM
-        prompt = f"""
-        Conversation History:
-        [History will go here]
-
-        Relevant Information from Documents:
-        ---
-        {" ".join(context)}
-        ---
-        
-        User's Message:
-        {message}
-        
-        Response:
-        """
-
-        # 4. (TODO) Call the LLM with the prompt and history
-        # For now, we'll just return the prompt and context
-        print(f"--- Generated Prompt for Session {session_id} ---")
-        print(prompt)
-
-        return {
-            "message": "This is a placeholder response. LLM integration is not complete.",
-            "context": context,
+        # 3. Build LiteLLM messages list
+        system_msg = {
+            "role": "system",
+            "content": (
+                "You are a helpful assistant. Use the following retrieved context to answer the user's question. "
+                "If the context does not contain the answer, say so. Keep responses concise.\n\n"
+                f"Context:\n{context_str}"
+            ),
         }
+        messages = [system_msg] + history + [{"role": "user", "content": message}]
+
+        # 4. Call LLM if configured; otherwise return placeholder
+        if not self.llm_api_key:
+            assistant_message = "LLM not configured: set OPENROUTER_API_KEY environment variable or pass llm_api_key to RAGWrapper."
+        else:
+            try:
+                response = litellm.completion(
+                    model=self.llm_model,
+                    messages=messages,
+                    api_key=self.llm_api_key,
+                    api_base=self.llm_api_base,
+                )
+                assistant_message = response.choices[0].message.content
+            except Exception as e:
+                assistant_message = f"Error calling LLM: {e}"
+
+        # 5. Update history (store both user and assistant)
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": assistant_message})
+
+        # Optional: trim history to last N exchanges to avoid excessive token usage
+        # e.g., keep last 10 user+assistant pairs (20 messages)
+        # if len(history) > 20: self.sessions[session_id] = history[-20:]
+
+        return {"message": assistant_message, "context": context}
 
 
 if __name__ == "__main__":

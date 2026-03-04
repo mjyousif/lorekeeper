@@ -4,3 +4,5 @@ openai
 chromadb
 sentence-transformers
 pypdf
+litellm
+python-dotenv

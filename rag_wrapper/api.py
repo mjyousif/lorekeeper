@@ -3,8 +3,12 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from dotenv import load_dotenv
 
 from rag_wrapper.wrapper import RAGWrapper
+
+# Load .env if present (e.g., for OPENROUTER_API_KEY)
+load_dotenv()
 
 # --- Pydantic Models for OpenAI Compatibility ---
 
