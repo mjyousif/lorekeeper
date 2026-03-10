@@ -1,9 +1,8 @@
 import os
-import chromadb
-from sentence_transformers import SentenceTransformer
 from pypdf import PdfReader
 import uuid
 import litellm
+from .vector_store import VectorStore, ChromaVectorStore
 
 
 class RAGWrapper:
@@ -11,6 +10,7 @@ class RAGWrapper:
         self,
         files: list[str] | str,
         db_path: str = "db",
+        vector_store: VectorStore | None = None,
         llm_model: str = None,
         llm_api_key: str = None,
         llm_api_base: str = None,
@@ -19,9 +19,13 @@ class RAGWrapper:
         # concrete list of files to embed
         self.files = self._resolve_files(files)
         self.db_path = db_path
-        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.client = chromadb.PersistentClient(path=self.db_path)
-        self.collection = self.client.get_or_create_collection(name="rag_collection")
+
+        # Initialize vector store (use provided or create default Chroma one)
+        if vector_store is not None:
+            self.vector_store = vector_store
+        else:
+            self.vector_store = ChromaVectorStore(db_path=db_path)
+
         self._load_and_embed_files()
 
         # LLM configuration: prefer explicit args, else environment
@@ -34,6 +38,7 @@ class RAGWrapper:
         # Track data file manifest for auto‑rebuild
         self._file_spec = files  # keep original spec to re‑discover files later
         self._manifest: dict[str, tuple[float, int]] = {}  # path → (mtime, size)
+        self.sessions: dict[str, list[dict]] = {}  # session_id → message history
         # After initial embedding, record the current state
         self._manifest = self._scan_files()
 
@@ -67,7 +72,7 @@ class RAGWrapper:
 
     def _scan_files(self) -> dict[str, tuple[float, int]]:
         """Scan the current set of data files (resolving the original spec) and return a dict of path → (mtime, size)."""
-        manifest: dict[str, tuple[Float, int]] = {}
+        manifest: dict[str, tuple[float, int]] = {}
         current_files = self._resolve_files(self._file_spec)
         for path in current_files:
             try:
@@ -91,11 +96,7 @@ class RAGWrapper:
     def _rebuild_index(self):
         """Delete the collection and re‑embed all files from scratch."""
         print("Data changes detected. Rebuilding index...")
-        try:
-            self.client.delete_collection(name="rag_collection")
-        except Exception:
-            pass  # collection may not exist
-        self.collection = self.client.get_or_create_collection(name="rag_collection")
+        self.vector_store.clear()
         # Refresh the file list to include any new/removed files
         self.files = self._resolve_files(self._file_spec)
         self._load_and_embed_files(force=True)
@@ -108,7 +109,7 @@ class RAGWrapper:
         Args:
             force: If True, embed regardless of whether the collection is non‑empty.
         """
-        if not force and self.collection.count() > 0:
+        if not force and self.vector_store.count() > 0:
             print("Collection already contains documents. Skipping embedding process.")
             return
 
@@ -121,10 +122,10 @@ class RAGWrapper:
                 # Create unique IDs for each chunk
                 ids = [str(uuid.uuid4()) for _ in chunks]
 
-                self.collection.add(
+                self.vector_store.insert(
                     documents=chunks,
-                    ids=ids,
                     metadatas=[{"source": file_path} for _ in chunks],
+                    ids=ids,
                 )
             except Exception as e:
                 print(f"Error processing file {file_path}: {e}")
@@ -162,8 +163,7 @@ class RAGWrapper:
 
     def get_relevant_context(self, message: str, n_results: int = 3) -> list[str]:
         """Queries the vector store to get context relevant to the message."""
-        results = self.collection.query(query_texts=[message], n_results=n_results)
-        return results["documents"][0] if results["documents"] else []
+        return self.vector_store.query(message, n_results=n_results)
 
     def chat(self, session_id: str, message: str) -> dict:
         """
