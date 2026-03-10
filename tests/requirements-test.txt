@@ -1,0 +1,6 @@
+# Test dependencies
+pytest>=7.0.0
+pytest-mock>=3.10.0
+
+# Optional: coverage reporting
+pytest-cov>=4.0.0
