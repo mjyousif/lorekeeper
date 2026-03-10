@@ -119,7 +119,14 @@ class ChromaVectorStore(VectorStore):
         metadatas: Optional[list[dict]] = None,
         ids: Optional[list[str]] = None,
     ) -> None:
-        """Insert documents into Chroma."""
+        """Insert documents into Chroma.
+
+        Args:
+            documents: List of document texts (chunks)
+            metadatas: Optional list of metadata dicts per document. If None,
+                      Chroma will store documents without metadata.
+            ids: Optional list of unique IDs for documents. If None, UUIDs are generated.
+        """
         import uuid
 
         # Generate IDs if not provided
@@ -128,11 +135,14 @@ class ChromaVectorStore(VectorStore):
         elif len(ids) != len(documents):
             raise ValueError("ids length must match documents length")
 
-        # Empty metadatas if None
-        if metadatas is None:
-            metadatas = [{} for _ in documents]
-        elif len(metadatas) != len(documents):
-            raise ValueError("metadatas length must match documents length")
+        # Validate metadatas if provided, else pass None to Chroma
+        if metadatas is not None:
+            if len(metadatas) != len(documents):
+                raise ValueError("metadatas length must match documents length")
+            # Ensure all metadatas are non-empty dicts (Chroma requirement)
+            for m in metadatas:
+                if not m:
+                    raise ValueError("metadata dicts must be non-empty")
 
         self.collection.add(
             documents=documents,
