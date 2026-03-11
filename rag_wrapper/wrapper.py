@@ -32,8 +32,14 @@ class RAGWrapper:
         self.llm_model = llm_model or os.getenv(
             "OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free"
         )
-        self.llm_api_key = llm_api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("LLM_API_KEY")
-        self.llm_api_base = llm_api_base or os.getenv("OPENROUTER_API_BASE") or os.getenv("LLM_API_BASE")
+        self.llm_api_key = (
+            llm_api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("LLM_API_KEY")
+        )
+        self.llm_api_base = (
+            llm_api_base
+            or os.getenv("OPENROUTER_API_BASE")
+            or os.getenv("LLM_API_BASE")
+        )
 
         # Track data file manifest for auto‑rebuild
         self._file_spec = files  # keep original spec to re‑discover files later
@@ -41,7 +47,6 @@ class RAGWrapper:
         self.sessions: dict[str, list[dict]] = {}  # session_id → message history
         # After initial embedding, record the current state
         self._manifest = self._scan_files()
-
 
     def _resolve_files(self, input_paths: list[str] | str) -> list[str]:
         """Return a flat list of readable files.
@@ -117,7 +122,11 @@ class RAGWrapper:
         for file_path in self.files:
             try:
                 content = self._read_file(file_path)
-                chunks = self._chunk_text(content)
+                # Only chunk files large
+                if len(content) > 10000:
+                    chunks = self._chunk_text(content)
+                else:
+                    chunks = [content]  # Store small files as single chunk
 
                 # Create unique IDs for each chunk
                 ids = [str(uuid.uuid4()) for _ in chunks]
@@ -176,7 +185,9 @@ class RAGWrapper:
 
         # 1. Retrieve relevant context
         context = self.get_relevant_context(message)
-        context_str = "\n---\n".join(context) if context else "No relevant context found."
+        context_str = (
+            "\n---\n".join(context) if context else "No relevant context found."
+        )
 
         # 2. Manage conversation history
         if session_id not in self.sessions:
