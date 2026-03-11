@@ -42,6 +42,14 @@ response_2 = wrapper.chat(session_id=session_id, message=user_message_2)
 print(response_2)
 ```
 
+## Development Setup
+
+This project uses [black](https://github.com/psf/black) for code formatting. To format your code:
+
+```shell
+black .
+```
+
 ## Running the API
 
 The project includes a FastAPI server that exposes an OpenAI-compliant `/v1/chat/completions` endpoint.
@@ -49,6 +57,11 @@ The project includes a FastAPI server that exposes an OpenAI-compliant `/v1/chat
 ### 1. Setup
 
 First, create and activate a virtual environment. This keeps the project's dependencies isolated.
+
+```shell
+# Install development dependencies including black
+pip install -r requirements.txt
+```
 
 ```shell
 # Create the virtual environment
