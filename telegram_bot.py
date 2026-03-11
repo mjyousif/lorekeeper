@@ -3,11 +3,18 @@ import json
 import sqlite3
 import requests
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
 # Configuration
 RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://127.0.0.1:8000/v1/chat/completions")
 DB_PATH = os.getenv("SESSION_DB", "sessions.db")
+
 
 # Initialize SQLite DB for per-chat history
 def init_db():
@@ -18,7 +25,10 @@ def init_db():
                 messages TEXT
             )
         """)
+
+
 init_db()
+
 
 def get_history(chat_id: int) -> list[dict]:
     with sqlite3.connect(DB_PATH) as con:
@@ -28,12 +38,14 @@ def get_history(chat_id: int) -> list[dict]:
             return json.loads(row[0])
         return []
 
+
 def set_history(chat_id: int, messages: list[dict]):
     with sqlite3.connect(DB_PATH) as con:
         con.execute(
             "INSERT OR REPLACE INTO history (chat_id, messages) VALUES (?, ?)",
-            (chat_id, json.dumps(messages))
+            (chat_id, json.dumps(messages)),
         )
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -62,8 +74,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(assistant_msg)
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Ask me anything about the lore!")
+
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -73,6 +87,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()

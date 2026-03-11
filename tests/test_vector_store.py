@@ -13,9 +13,11 @@ class TestVectorStoreInterface:
 
     def test_abstract_methods_raise_not_implemented(self):
         """All VectorStore methods should raise NotImplementedError."""
+
         class DummyStore(VectorStore):
             def __init__(self, db_path, embedding_model=None):
                 pass
+
             # Not implementing any methods
 
         store = DummyStore("test_path")
