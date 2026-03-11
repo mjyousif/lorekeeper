@@ -41,6 +41,24 @@ class RAGWrapper:
             or os.getenv("LLM_API_BASE")
         )
 
+        # Load context and character files from environment variables
+        self.context = ""
+        self.character = ""
+        context_file = os.getenv("CONTEXT_FILE")
+        character_file = os.getenv("CHARACTER_FILE")
+        if context_file:
+            try:
+                with open(context_file, "r", encoding="utf-8") as f:
+                    self.context = f.read()
+            except Exception as e:
+                print(f"Warning: could not load context file: {e}")
+        if character_file:
+            try:
+                with open(character_file, "r", encoding="utf-8") as f:
+                    self.character = f.read()
+            except Exception as e:
+                print(f"Warning: could not load character file: {e}")
+
         # Track data file manifest for auto‑rebuild
         self._file_spec = files  # keep original spec to re‑discover files later
         self._manifest: dict[str, tuple[float, int]] = {}  # path → (mtime, size)
@@ -200,7 +218,7 @@ class RAGWrapper:
             "content": (
                 "You are a helpful assistant. Use the following retrieved context to answer the user's question. "
                 "If the context does not contain the answer, say so. Keep responses concise.\n\n"
-                f"Context:\n{context_str}"
+                f"Context:\n{context_str}\n\n---\n\nKey Context:\n{self.context}\n\n---\n\nCharacter:\n{self.character}"
             ),
         }
         messages = [system_msg] + history + [{"role": "user", "content": message}]
