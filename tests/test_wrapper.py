@@ -29,7 +29,9 @@ class TestRAGWrapperInitialization:
         file1.write_text("Content 1")
         file2.write_text("Content 2")
 
-        wrapper = RAGWrapper(files=[str(file1), str(file2)], db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(
+            files=[str(file1), str(file2)], db_path=str(tmp_path / "db")
+        )
 
         assert len(wrapper.files) == 2
 
@@ -41,7 +43,9 @@ class TestRAGWrapperInitialization:
         file1 = tmp_path / "file1.txt"
         file1.write_text("File doc")
 
-        wrapper = RAGWrapper(files=[str(data_dir), str(file1)], db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(
+            files=[str(data_dir), str(file1)], db_path=str(tmp_path / "db")
+        )
 
         assert len(wrapper.files) == 2
 
@@ -67,9 +71,7 @@ class TestRAGWrapperInitialization:
         mock_store.count.return_value = 0
 
         wrapper = RAGWrapper(
-            files=str(tmp_path),
-            db_path=str(tmp_path / "db"),
-            vector_store=mock_store
+            files=str(tmp_path), db_path=str(tmp_path / "db"), vector_store=mock_store
         )
 
         assert wrapper.vector_store is mock_store
@@ -290,7 +292,9 @@ class TestRAGWrapperVectorStoreIntegration:
         """Create wrapper with known content."""
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "trovu.txt").write_text("Trovu teaches Peace, Love, Unity, Respect.")
+        (data_dir / "trovu.txt").write_text(
+            "Trovu teaches Peace, Love, Unity, Respect."
+        )
         (data_dir / "creen.txt").write_text("Creen is the evil religion of Gage.")
         db_path = str(tmp_path / "db")
         wrapper = RAGWrapper(files=str(data_dir), db_path=db_path)
@@ -335,9 +339,7 @@ class TestRAGWrapperVectorStoreIntegration:
 
         custom_store = CustomStore(db_path=str(tmp_path / "custom_db"))
         wrapper = RAGWrapper(
-            files=str(data_dir),
-            db_path=str(tmp_path / "db"),
-            vector_store=custom_store
+            files=str(data_dir), db_path=str(tmp_path / "db"), vector_store=custom_store
         )
 
         assert isinstance(wrapper.vector_store, CustomStore)
@@ -352,7 +354,9 @@ class TestRAGWrapperChat:
         """Create wrapper with test data and mock LLM."""
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "lore.txt").write_text("Trovu is the true faith. Peace, Love, Unity, Respect.")
+        (data_dir / "lore.txt").write_text(
+            "Trovu is the true faith. Peace, Love, Unity, Respect."
+        )
 
         # Set a dummy API key to avoid config error
         os.environ["OPENROUTER_API_KEY"] = "test-key"
@@ -362,7 +366,7 @@ class TestRAGWrapperChat:
             files=str(data_dir),
             db_path=db_path,
             llm_model="test-model",
-            llm_api_key="test-key"
+            llm_api_key="test-key",
         )
         return wrapper
 
@@ -370,9 +374,13 @@ class TestRAGWrapperChat:
         """chat should initialize session if session_id not seen before."""
         session_id = "new_session"
 
-        with patch('rag_wrapper.wrapper.litellm.completion') as mock_completion:
+        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
             mock_completion.return_value.choices = [
-                type('obj', (object,), {'message': type('obj', (object,), {'content': 'Test response'})()})()
+                type(
+                    "obj",
+                    (object,),
+                    {"message": type("obj", (object,), {"content": "Test response"})()},
+                )()
             ]
             response = wrapper.chat(session_id=session_id, message="Hello")
 
@@ -381,7 +389,7 @@ class TestRAGWrapperChat:
 
     def test_chat_retrieves_context(self, wrapper):
         """chat should include relevant context in system prompt."""
-        with patch('rag_wrapper.wrapper.litellm.completion') as mock_completion:
+        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
             # Create a proper MagicMock for the response
             mock_choice = MagicMock()
             mock_choice.message.content = "Response"
@@ -391,20 +399,20 @@ class TestRAGWrapperChat:
 
             # Extract the messages passed to litellm
             call_args = mock_completion.call_args[1]
-            messages = call_args['messages']
+            messages = call_args["messages"]
 
             # System message should contain context
             system_msg = messages[0]
-            assert system_msg['role'] == 'system'
-            assert 'Context:' in system_msg['content']
-            assert 'Trovu' in system_msg['content']
+            assert system_msg["role"] == "system"
+            assert "Context:" in system_msg["content"]
+            assert "Trovu" in system_msg["content"]
 
     def test_chat_uses_relevant_context_for_query(self, wrapper):
         """chat should query vector store with user message."""
-        with patch.object(wrapper, 'get_relevant_context') as mock_get:
+        with patch.object(wrapper, "get_relevant_context") as mock_get:
             mock_get.return_value = ["Mocked context"]
 
-            with patch('rag_wrapper.wrapper.litellm.completion') as mock_completion:
+            with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
                 mock_choice = MagicMock()
                 mock_choice.message.content = "Reply"
                 mock_completion.return_value.choices = [mock_choice]
@@ -419,7 +427,7 @@ class TestRAGWrapperChat:
         """chat should maintain and include conversation history."""
         session_id = "history_test"
 
-        with patch('rag_wrapper.wrapper.litellm.completion') as mock_completion:
+        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply 1"
             mock_completion.return_value.choices = [mock_choice]
@@ -435,14 +443,14 @@ class TestRAGWrapperChat:
 
             # Verify that history was included in LLM call
             call_args = mock_completion.call_args[1]
-            messages = call_args['messages']
+            messages = call_args["messages"]
             # Should include: system + previous history (first turn) + current user message
             # That's 1 (system) + 2 (first user+assistant) + 1 (second user) = 4 messages
             assert len(messages) == 4
 
     def test_chat_handles_llm_error(self, wrapper):
         """chat should handle LLM API errors gracefully."""
-        with patch('rag_wrapper.wrapper.litellm.completion') as mock_completion:
+        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
             mock_completion.side_effect = Exception("API error")
 
             response = wrapper.chat(session_id="test", message="Hello")
@@ -452,7 +460,7 @@ class TestRAGWrapperChat:
     def test_chat_without_api_key(self, tmp_path, monkeypatch):
         """chat should return helpful message if no API key configured."""
         # Ensure OPENROUTER_API_KEY is not set
-        monkeypatch.delenv('OPENROUTER_API_KEY', raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
         data_dir = tmp_path / "data"
         data_dir.mkdir()
@@ -461,7 +469,7 @@ class TestRAGWrapperChat:
         wrapper = RAGWrapper(
             files=str(data_dir),
             db_path=str(tmp_path / "db"),
-            llm_api_key=None  # Explicitly None
+            llm_api_key=None,  # Explicitly None
         )
 
         response = wrapper.chat(session_id="test", message="Hello")
@@ -476,9 +484,7 @@ class TestRAGWrapperChat:
         os.environ["OPENROUTER_API_KEY"] = "env-key"
         try:
             wrapper = RAGWrapper(
-                files=str(data_dir),
-                db_path=str(tmp_path / "db"),
-                llm_api_key=None
+                files=str(data_dir), db_path=str(tmp_path / "db"), llm_api_key=None
             )
             assert wrapper.llm_api_key == "env-key"
         finally:
@@ -490,9 +496,13 @@ class TestRAGWrapperChat:
         wrapper.session_id = "test"
 
         # Initial chat
-        with patch('rag_wrapper.wrapper.litellm.completion') as mock_completion:
+        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
             mock_completion.return_value.choices = [
-                type('obj', (object,), {'message': type('obj', (object,), {'content': 'Reply'})()})()
+                type(
+                    "obj",
+                    (object,),
+                    {"message": type("obj", (object,), {"content": "Reply"})()},
+                )()
             ]
             wrapper.chat(session_id="test", message="Hello")
             initial_count = wrapper.vector_store.count()
@@ -502,9 +512,13 @@ class TestRAGWrapperChat:
         # Force rebuild by manipulating manifest
         wrapper._manifest = {}  # Invalidate manifest
 
-        with patch('rag_wrapper.wrapper.litellm.completion') as mock_completion:
+        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
             mock_completion.return_value.choices = [
-                type('obj', (object,), {'message': type('obj', (object,), {'content': 'Reply'})()})()
+                type(
+                    "obj",
+                    (object,),
+                    {"message": type("obj", (object,), {"content": "Reply"})()},
+                )()
             ]
             wrapper.chat(session_id="test", message="Hello again")
 
@@ -541,7 +555,7 @@ class TestRAGWrapperEndToEnd:
         wrapper = RAGWrapper(
             files=str(data_dir),
             db_path=str(tmp_path / "db"),
-            llm_api_key=os.environ.get("OPENROUTER_API_KEY")
+            llm_api_key=os.environ.get("OPENROUTER_API_KEY"),
         )
 
         # Verify data was embedded
