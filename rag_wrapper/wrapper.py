@@ -42,7 +42,10 @@ class RAGWrapper:
             )
 
         # Resolve parameters: explicit > config > env/defaults
-        self.files = files if files is not None else cfg.files
+        # Keep the raw spec for rebuild detection
+        raw_files = files if files is not None else cfg.files
+        self._file_spec = raw_files
+        self.files = self._resolve_files(raw_files)
         self.db_path = db_path if db_path is not None else cfg.db_path
 
         # Initialize vector store (use provided or create default Chroma one)
@@ -100,7 +103,7 @@ class RAGWrapper:
         self.overlap = overlap if overlap is not None else cfg.overlap
 
         # Track data file manifest for auto‑rebuild
-        self._file_spec = self.files  # keep original spec to re‑discover files later
+        # self._file_spec already set above (raw spec)
         self._manifest: dict[str, tuple[float, int]] = {}  # path → (mtime, size)
         self.sessions: dict[str, list[dict]] = {}  # session_id → message history
         # After initial embedding, record the current state
