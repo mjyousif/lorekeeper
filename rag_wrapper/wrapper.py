@@ -4,77 +4,103 @@ from pypdf import PdfReader
 import uuid
 import litellm
 from .vector_store import VectorStore, ChromaVectorStore
+from .config import Config
 
-# Configure module-level logger
 logger = logging.getLogger(__name__)
 
 
 class RAGWrapper:
     def __init__(
         self,
-        files: list[str] | str,
-        db_path: str = "db",
+        files: list[str] | str | None = None,
+        db_path: str | None = None,
         vector_store: VectorStore | None = None,
         llm_model: str = None,
         llm_api_key: str = None,
         llm_api_base: str = None,
         log_level: str = "INFO",
+        chunk_size: int | None = None,
+        overlap: int | None = None,
+        context_file: str | None = None,
+        character_file: str | None = None,
+        config_path: str | None = None,
     ):
-        # Configure logging if not already configured
+        # Load configuration from file if provided
+        cfg = Config()
+        if config_path:
+            try:
+                cfg = Config.from_file(config_path)
+                logger.info("Loaded configuration from %s", config_path)
+            except Exception as e:
+                logger.warning("Failed to load config from %s: %s", config_path, e)
+
+        # Configure logging (can be overridden by explicit log_level later or config)
         if not logging.getLogger().handlers:
             logging.basicConfig(
                 level=getattr(logging, log_level.upper(), logging.INFO),
                 format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             )
 
-        # support passing a single directory or list of files/dirs; build a
-        # concrete list of files to embed
-        self.files = self._resolve_files(files)
-        self.db_path = db_path
+        # Resolve parameters: explicit > config > env/defaults
+        self.files = files if files is not None else cfg.files
+        self.db_path = db_path if db_path is not None else cfg.db_path
 
         # Initialize vector store (use provided or create default Chroma one)
         if vector_store is not None:
             self.vector_store = vector_store
         else:
-            self.vector_store = ChromaVectorStore(db_path=db_path)
+            self.vector_store = ChromaVectorStore(db_path=self.db_path)
 
         self._load_and_embed_files()
 
-        # LLM configuration: prefer explicit args, else environment
-        self.llm_model = llm_model or os.getenv(
-            "OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free"
+        # LLM configuration: explicit > config.llm > environment
+        llm_cfg = cfg.llm
+        self.llm_model = (
+            llm_model
+            or llm_cfg.get("model")
+            or os.getenv("OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free")
         )
         self.llm_api_key = (
-            llm_api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("LLM_API_KEY")
+            llm_api_key
+            or llm_cfg.get("api_key")
+            or os.getenv("OPENROUTER_API_KEY")
+            or os.getenv("LLM_API_KEY")
         )
         self.llm_api_base = (
             llm_api_base
+            or llm_cfg.get("api_base")
             or os.getenv("OPENROUTER_API_BASE")
             or os.getenv("LLM_API_BASE")
         )
 
-        # Load context and character files from environment variables
-        self.context = ""
-        self.character = ""
-        context_file = os.getenv("CONTEXT_FILE")
-        character_file = os.getenv("CHARACTER_FILE")
-        if context_file:
+        # Context and character files: explicit > config > env
+        ctx_file = context_file or cfg.context_file or os.getenv("CONTEXT_FILE")
+        char_file = character_file or cfg.character_file or os.getenv("CHARACTER_FILE")
+        if ctx_file:
             try:
-                with open(context_file, "r", encoding="utf-8") as f:
+                with open(ctx_file, "r", encoding="utf-8") as f:
                     self.context = f.read().strip()
-                logger.info("Loaded context from %s", context_file)
+                logger.info("Loaded context from %s", ctx_file)
             except Exception as e:
-                logger.error("Failed to read context file %s: %s", context_file, e)
-        if character_file:
+                logger.error("Failed to read context file %s: %s", ctx_file, e)
+        else:
+            self.context = ""
+        if char_file:
             try:
-                with open(character_file, "r", encoding="utf-8") as f:
+                with open(char_file, "r", encoding="utf-8") as f:
                     self.character = f.read().strip()
-                logger.info("Loaded character from %s", character_file)
+                logger.info("Loaded character from %s", char_file)
             except Exception as e:
-                logger.error("Failed to read character file %s: %s", character_file, e)
+                logger.error("Failed to read character file %s: %s", char_file, e)
+        else:
+            self.character = ""
+
+        # Chunking parameters: explicit > config > hardcoded defaults
+        self.chunk_size = chunk_size if chunk_size is not None else cfg.chunk_size
+        self.overlap = overlap if overlap is not None else cfg.overlap
 
         # Track data file manifest for auto‑rebuild
-        self._file_spec = files  # keep original spec to re‑discover files later
+        self._file_spec = self.files  # keep original spec to re‑discover files later
         self._manifest: dict[str, tuple[float, int]] = {}  # path → (mtime, size)
         self.sessions: dict[str, list[dict]] = {}  # session_id → message history
         # After initial embedding, record the current state
@@ -154,9 +180,10 @@ class RAGWrapper:
         for file_path in self.files:
             try:
                 content = self._read_file(file_path)
-                # Only chunk files larger than 10k characters
-                if len(content) > 10000:
-                    chunks = self._chunk_text(content)
+                # Only chunk files larger than threshold (configurable)
+                chunk_threshold = int(os.getenv("RAG_CHUNK_THRESHOLD", "10000"))
+                if len(content) > chunk_threshold:
+                    chunks = self._chunk_text(content, chunk_size=self.chunk_size, overlap=self.overlap)
                 else:
                     chunks = [content]  # Store small files as single chunk
 
