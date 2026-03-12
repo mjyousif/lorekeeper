@@ -7,3 +7,5 @@ pypdf
 litellm
 python-dotenv
 black
+pyyaml
+toml
