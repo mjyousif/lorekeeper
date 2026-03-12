@@ -1,8 +1,12 @@
 import os
+import logging
 from pypdf import PdfReader
 import uuid
 import litellm
 from .vector_store import VectorStore, ChromaVectorStore
+
+# Configure module-level logger
+logger = logging.getLogger(__name__)
 
 
 class RAGWrapper:
@@ -14,7 +18,15 @@ class RAGWrapper:
         llm_model: str = None,
         llm_api_key: str = None,
         llm_api_base: str = None,
+        log_level: str = "INFO",
     ):
+        # Configure logging if not already configured
+        if not logging.getLogger().handlers:
+            logging.basicConfig(
+                level=getattr(logging, log_level.upper(), logging.INFO),
+                format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            )
+
         # support passing a single directory or list of files/dirs; build a
         # concrete list of files to embed
         self.files = self._resolve_files(files)
@@ -49,15 +61,17 @@ class RAGWrapper:
         if context_file:
             try:
                 with open(context_file, "r", encoding="utf-8") as f:
-                    self.context = f.read()
+                    self.context = f.read().strip()
+                logger.info("Loaded context from %s", context_file)
             except Exception as e:
-                print(f"Warning: could not load context file: {e}")
+                logger.error("Failed to read context file %s: %s", context_file, e)
         if character_file:
             try:
                 with open(character_file, "r", encoding="utf-8") as f:
-                    self.character = f.read()
+                    self.character = f.read().strip()
+                logger.info("Loaded character from %s", character_file)
             except Exception as e:
-                print(f"Warning: could not load character file: {e}")
+                logger.error("Failed to read character file %s: %s", character_file, e)
 
         # Track data file manifest for auto‑rebuild
         self._file_spec = files  # keep original spec to re‑discover files later
@@ -89,7 +103,7 @@ class RAGWrapper:
             elif os.path.isfile(path):
                 results.append(path)
             else:
-                print(f"Warning: path does not exist or is not a file/dir: {path}")
+                logger.warning("Path does not exist or is not a file/dir: %s", path)
 
         return results
 
@@ -102,7 +116,7 @@ class RAGWrapper:
                 stat = os.stat(path)
                 manifest[path] = (stat.st_mtime, stat.st_size)
             except Exception as e:
-                print(f"Warning: cannot stat {path}: {e}")
+                logger.warning("Cannot stat %s: %s", path, e)
         return manifest
 
     def _needs_rebuild(self) -> bool:
@@ -118,13 +132,13 @@ class RAGWrapper:
 
     def _rebuild_index(self):
         """Delete the collection and re‑embed all files from scratch."""
-        print("Data changes detected. Rebuilding index...")
+        logger.info("Data changes detected. Rebuilding index...")
         self.vector_store.clear()
         # Refresh the file list to include any new/removed files
         self.files = self._resolve_files(self._file_spec)
         self._load_and_embed_files(force=True)
         self._manifest = self._scan_files()
-        print("Index rebuild complete.")
+        logger.info("Index rebuild complete.")
 
     def _load_and_embed_files(self, force: bool = False):
         """Loads files, chunks them, and stores them in the vector DB.
@@ -133,14 +147,14 @@ class RAGWrapper:
             force: If True, embed regardless of whether the collection is non‑empty.
         """
         if not force and self.vector_store.count() > 0:
-            print("Collection already contains documents. Skipping embedding process.")
+            logger.info("Collection already contains documents. Skipping embedding.")
             return
 
-        print("Loading and embedding files...")
+        logger.info("Loading and embedding files...")
         for file_path in self.files:
             try:
                 content = self._read_file(file_path)
-                # Only chunk files large
+                # Only chunk files larger than 10k characters
                 if len(content) > 10000:
                     chunks = self._chunk_text(content)
                 else:
@@ -154,9 +168,10 @@ class RAGWrapper:
                     metadatas=[{"source": file_path} for _ in chunks],
                     ids=ids,
                 )
+                logger.debug("Embedded %d chunks from %s", len(chunks), file_path)
             except Exception as e:
-                print(f"Error processing file {file_path}: {e}")
-        print("Finished loading files.")
+                logger.error("Error processing file %s: %s", file_path, e)
+        logger.info("Finished loading files.")
 
     def _read_file(self, file_path: str) -> str:
         """Reads content from a file (supports .txt, .md, .pdf)."""
@@ -190,6 +205,7 @@ class RAGWrapper:
 
     def get_relevant_context(self, message: str, n_results: int = 3) -> list[str]:
         """Queries the vector store to get context relevant to the message."""
+        logger.debug("Querying vector store for: %s (n_results=%d)", message, n_results)
         return self.vector_store.query(message, n_results=n_results)
 
     def chat(self, session_id: str, message: str) -> dict:
@@ -199,6 +215,7 @@ class RAGWrapper:
         """
         # 0. Rebuild index if underlying data files have changed
         if self._needs_rebuild():
+            logger.info("Data changes detected, rebuilding index...")
             self._rebuild_index()
 
         # 1. Retrieve relevant context
@@ -206,10 +223,12 @@ class RAGWrapper:
         context_str = (
             "\n---\n".join(context) if context else "No relevant context found."
         )
+        logger.debug("Retrieved %d context chunks", len(context))
 
         # 2. Manage conversation history
         if session_id not in self.sessions:
             self.sessions[session_id] = []
+            logger.debug("Created new session: %s", session_id)
         history = self.sessions[session_id]
 
         # 3. Build LiteLLM messages list
@@ -226,8 +245,10 @@ class RAGWrapper:
         # 4. Call LLM if configured; otherwise return placeholder
         if not self.llm_api_key:
             assistant_message = "LLM not configured: set OPENROUTER_API_KEY environment variable or pass llm_api_key to RAGWrapper."
+            logger.warning("LLM API key not configured; returning placeholder message")
         else:
             try:
+                logger.debug("Calling LLM model: %s", self.llm_model)
                 response = litellm.completion(
                     model=self.llm_model,
                     messages=messages,
@@ -235,16 +256,14 @@ class RAGWrapper:
                     api_base=self.llm_api_base,
                 )
                 assistant_message = response.choices[0].message.content
+                logger.info("LLM call successful")
             except Exception as e:
+                logger.exception("Error calling LLM")
                 assistant_message = f"Error calling LLM: {e}"
 
         # 5. Update history (store both user and assistant)
         history.append({"role": "user", "content": message})
         history.append({"role": "assistant", "content": assistant_message})
-
-        # Optional: trim history to last N exchanges to avoid excessive token usage
-        # e.g., keep last 10 user+assistant pairs (20 messages)
-        # if len(history) > 20: self.sessions[session_id] = history[-20:]
 
         return {"message": assistant_message, "context": context}
 

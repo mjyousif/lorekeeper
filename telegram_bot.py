@@ -1,6 +1,7 @@
 import os
 import json
 import sqlite3
+import logging
 import requests
 from telegram import Update
 from telegram.ext import (
@@ -11,6 +12,13 @@ from telegram.ext import (
     filters,
 )
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 # Configuration
 RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://127.0.0.1:8000/v1/chat/completions")
 DB_PATH = os.getenv("SESSION_DB", "sessions.db")
@@ -18,38 +26,50 @@ DB_PATH = os.getenv("SESSION_DB", "sessions.db")
 
 # Initialize SQLite DB for per-chat history
 def init_db():
-    with sqlite3.connect(DB_PATH) as con:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS history (
-                chat_id INTEGER PRIMARY KEY,
-                messages TEXT
-            )
-        """)
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS history (
+                    chat_id INTEGER PRIMARY KEY,
+                    messages TEXT
+                )
+            """)
+        logger.info("Initialized SQLite session DB at %s", DB_PATH)
+    except Exception as e:
+        logger.error("Failed to initialize DB: %s", e)
 
 
 init_db()
 
 
 def get_history(chat_id: int) -> list[dict]:
-    with sqlite3.connect(DB_PATH) as con:
-        cur = con.execute("SELECT messages FROM history WHERE chat_id=?", (chat_id,))
-        row = cur.fetchone()
-        if row:
-            return json.loads(row[0])
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            cur = con.execute("SELECT messages FROM history WHERE chat_id=?", (chat_id,))
+            row = cur.fetchone()
+            if row:
+                return json.loads(row[0])
+            return []
+    except Exception as e:
+        logger.error("Error reading history for chat_id %d: %s", chat_id, e)
         return []
 
 
 def set_history(chat_id: int, messages: list[dict]):
-    with sqlite3.connect(DB_PATH) as con:
-        con.execute(
-            "INSERT OR REPLACE INTO history (chat_id, messages) VALUES (?, ?)",
-            (chat_id, json.dumps(messages)),
-        )
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            con.execute(
+                "INSERT OR REPLACE INTO history (chat_id, messages) VALUES (?, ?)",
+                (chat_id, json.dumps(messages)),
+            )
+    except Exception as e:
+        logger.error("Error saving history for chat_id %d: %s", chat_id, e)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_msg = update.message.text
+    logger.info("Received message from chat_id %d: %s", chat_id, user_msg[:100])
 
     # Load conversation history
     messages = get_history(chat_id)
@@ -58,11 +78,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Call rag-wrapper (OpenAI format)
     payload = {"messages": messages}
     try:
+        logger.debug("Calling RAG endpoint: %s", RAG_ENDPOINT)
         resp = requests.post(RAG_ENDPOINT, json=payload, timeout=60)
         resp.raise_for_status()
         data = resp.json()
         assistant_msg = data["choices"][0]["message"]["content"]
+        logger.info("RAG response received for chat_id %d", chat_id)
     except Exception as e:
+        logger.exception("Error contacting RAG service")
         assistant_msg = f"Error contacting RAG service: {e}"
 
     # Append assistant reply and save history
@@ -76,13 +99,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Start command from chat_id %d", update.effective_chat.id)
     await update.message.reply_text("Ask me anything about the lore!")
 
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
+        logger.error("TELEGRAM_BOT_TOKEN not set")
         raise RuntimeError("TELEGRAM_BOT_TOKEN not set")
+    logger.info("Starting Telegram bot")
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
