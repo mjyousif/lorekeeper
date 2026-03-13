@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""
+Chatter CLI - Manage the RAG chatbot system.
+
+Usage:
+  chatter start [api|telegram|ui|all]  Start one or all services in background
+  chatter stop [api|telegram|ui|all]   Stop services
+  chatter logs [api|telegram]          Follow logs (default: both)
+  chatter status                       Show which services are running
+  Chatter help                       Show this help
+"""
+
+import os
+import sys
+import subprocess
+import time
+import signal
+import json
+from pathlib import Path
+
+# Configuration
+ROOT = Path(__file__).parent
+PID_DIR = ROOT / ".run"
+LOG_DIR = ROOT / ".logs"
+PID_DIR.mkdir(exist_ok=True)
+LOG_DIR.mkdir(exist_ok=True)
+
+# Service definitions
+SERVICES = {
+    "api": {
+        "cmd": ["uv", "run", "uvicorn", "rag_wrapper.api:app", "--host", "127.0.0.1", "--port", "8000"],
+        "pid": PID_DIR / "api.pid",
+        "log": LOG_DIR / "api.log",
+        "daemon": True,
+    },
+    "telegram": {
+        "cmd": ["uv", "run", "python", "telegram_bot.py"],
+        "pid": PID_DIR / "telegram.pid",
+        "log": LOG_DIR / "telegram.log",
+        "daemon": True,
+    },
+    "ui": {
+        "cmd": ["uv", "run", "python", "gradio_app.py"],
+        "pid": PID_DIR / "ui.pid",
+        "log": LOG_DIR / "ui.log",
+        "daemon": True,
+    },
+}
+
+
+def read_pid(pid_file: Path) -> int | None:
+    if pid_file.exists():
+        try:
+            return int(pid_file.read_text().strip())
+        except Exception:
+            return None
+    return None
+
+
+def is_running(service: str) -> bool:
+    pid = read_pid(SERVICES[service]["pid"])
+    if pid is None:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def start_service(service: str):
+    if is_running(service):
+        print(f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})")
+        return
+
+    # Load environment from .env if present
+    env = os.environ.copy()
+    dotenv = ROOT / ".env"
+    if dotenv.exists():
+        for line in dotenv.read_text().splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, v = line.strip().split("=", 1)
+                env[k] = v
+
+    cmd = SERVICES[service]["cmd"]
+    log_path = SERVICES[service]["log"]
+    pid_path = SERVICES[service]["pid"]
+
+    print(f"[{service}] Starting {' '.join(cmd)}")
+    with open(log_path, "a") as log_file:
+        process = subprocess.Popen(
+            cmd,
+            cwd=ROOT,
+            env=env,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,  # daemonize (detach from parent)
+        )
+    pid_path.write_text(str(process.pid))
+    time.sleep(0.5)
+    if is_running(service):
+        print(f"[{service}] Started with PID {process.pid}")
+    else:
+        print(f"[{service}] Failed to start (check logs: {log_path})")
+
+
+def stop_service(service: str):
+    pid = read_pid(SERVICES[service]["pid"])
+    if pid is None:
+        print(f"[{service}] Not running (no PID file)")
+        return
+    try:
+        os.kill(pid, signal.SIGTERM)
+        print(f"[{service}] Stopped (PID {pid})")
+        SERVICES[service]["pid"].unlink(missing_ok=True)
+    except OSError:
+        print(f"[{service}] Process {pid} not found; removing stale PID file")
+        SERVICES[service]["pid"].unlink(missing_ok=True)
+
+
+def tail_log(log_path: Path, follow: bool = True):
+    try:
+        with open(log_path, "r") as f:
+            if follow:
+                # Like tail -f
+                f.seek(0, 2)
+                while True:
+                    line = f.readline()
+                    if line:
+                        print(line, end="")
+                    else:
+                        time.sleep(0.1)
+            else:
+                print(f.read())
+    except KeyboardInterrupt:
+        pass
+    except FileNotFoundError:
+        print(f"Log file not found: {log_path}")
+
+
+def main(argv: list[str] | None = None):
+    if argv is None:
+        argv = sys.argv[1:]
+
+    if not argv:
+        print(__doc__)
+        return 1
+
+    command = argv[0]
+    args = argv[1:]
+
+    if command == "help":
+        print(__doc__)
+        return 0
+
+    if command == "start":
+        services = args if args else ["all"]
+        if "all" in services:
+            services = list(SERVICES.keys())
+        for s in services:
+            if s not in SERVICES:
+                print(f"Unknown service: {s}")
+                return 1
+            start_service(s)
+
+    elif command == "stop":
+        services = args if args else ["all"]
+        if "all" in services:
+            services = list(SERVICES.keys())
+        for s in services:
+            if s not in SERVICES:
+                print(f"Unknown service: {s}")
+                return 1
+            stop_service(s)
+
+    elif command == "logs":
+        services = args if args else ["api", "telegram"]
+        follow = True
+        # Simple: if no services, default to both
+        for s in services:
+            if s not in SERVICES:
+                print(f"Unknown service: {s}")
+                return 1
+        # If only one service, you can optionally add -f or -n flags
+        # Here we always follow
+        try:
+            for s in services:
+                print(f"--- Following {SERVICES[s]['log']} (Ctrl+C to exit) ---")
+                tail_log(SERVICES[s]["log"], follow=True)
+        except KeyboardInterrupt:
+            pass
+
+    elif command == "status":
+        print("Service Status:")
+        for s in SERVICES:
+            running = is_running(s)
+            status = "RUNNING" if running else "STOPPED"
+            pid = read_pid(SERVICES[s]["pid"])
+            print(f"  {s:10} {status:10} PID: {pid if pid else '-'}")
+
+    else:
+        print(f"Unknown command: {command}")
+        print(__doc__)
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,3 +1,4 @@
+import os
 import time
 import uuid
 import logging
@@ -7,6 +8,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 from rag_wrapper.wrapper import RAGWrapper
+from rag_wrapper.config import Config
 
 # Configure logging
 logging.basicConfig(
@@ -17,6 +19,19 @@ logger = logging.getLogger(__name__)
 
 # Load .env if present (e.g., for OPENROUTER_API_KEY)
 load_dotenv()
+
+# Load configuration from config.yaml
+CONFIG_PATH = os.getenv("RAG_CONFIG_PATH", "config.yaml")
+try:
+    cfg = Config.from_file(CONFIG_PATH)
+    DB_PATH = cfg.db_path
+    FILES = cfg.files
+    LLM_MODEL = cfg.llm.get("model", "openrouter/stepfun/step-3.5-flash:free")
+except Exception as e:
+    logging.warning(f"Failed to load config from {CONFIG_PATH}: {e}. Using defaults.")
+    DB_PATH = "shared_db"
+    FILES = "data"
+    LLM_MODEL = "openrouter/stepfun/step-3.5-flash:free"
 
 # --- Pydantic Models for OpenAI Compatibility ---
 
@@ -51,6 +66,8 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionResponseChoice]
     usage: Usage = Field(default_factory=Usage)
+    # Custom field to expose retrieved context separately (non-OpenAI standard)
+    context: Optional[List[str]] = None
 
 
 # --- FastAPI Application ---
@@ -63,7 +80,9 @@ app = FastAPI()
 # directory and will scan it recursively for supported document types.
 logger.info("Initializing RAG Wrapper for API...")
 rag_wrapper = RAGWrapper(
-    files="data", db_path="api_db"  # point at the folder, not individual files
+    files=FILES,
+    db_path=DB_PATH,
+    llm_model=LLM_MODEL,
 )
 logger.info("Initialization complete.")
 
@@ -91,20 +110,20 @@ async def chat_completions(request: ChatCompletionRequest):
         logger.exception("Error in RAG wrapper")
         raise HTTPException(status_code=500, detail=f"RAG error: {str(e)}") from e
 
-    # The wrapper's `chat` method returns a dict with a placeholder message
-    # and the retrieved context. We'll format this into an OpenAI-style response.
-    context_str = "\n\n--- Retrieved Context ---\n" + "\n".join(
-        wrapper_response.get("context", [])
-    )
+    # The wrapper's `chat` method returns a dict with the LLM message
+    # and the retrieved context. We return a proper OpenAI-compliant response
+    # with the pure message in choices, and include context as a separate field.
+    llm_message = wrapper_response.get("message", "No response from wrapper.")
+    retrieved_context = wrapper_response.get("context", [])
 
-    assistant_message_content = (
-        wrapper_response.get("message", "No response from wrapper.") + context_str
-    )
-
-    # Create the response payload
-    assistant_message = ChatMessage(role="assistant", content=assistant_message_content)
+    # Create the response payload - only the LLM message in the choice
+    assistant_message = ChatMessage(role="assistant", content=llm_message)
     choice = ChatCompletionResponseChoice(index=0, message=assistant_message)
-    response = ChatCompletionResponse(model=request.model, choices=[choice])
+    response = ChatCompletionResponse(
+        model=request.model,
+        choices=[choice],
+        context=retrieved_context if retrieved_context else None,
+    )
 
     logger.info("Successfully processed chat request")
     return response
