@@ -14,6 +14,13 @@ from telegram.ext import (
 )
 from rag_wrapper.config import Config
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 # Load .env file automatically
 load_dotenv()
 
@@ -71,13 +78,6 @@ def is_authorized(update: Update) -> bool:
 
     return False
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-
 # Configuration
 RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://127.0.0.1:8000/v1/chat/completions")
 DB_PATH = os.getenv("SESSION_DB", "sessions.db")
@@ -125,7 +125,7 @@ def set_history(chat_id: int, messages: list[dict]):
         logger.error("Error saving history for chat_id %d: %s", chat_id, e)
 
 
-async def handle_message(update: Update, context: ContextTypes[DEFAULT_TYPE]):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Authorization check
     if not is_authorized(update):
         logger.warning(
