@@ -51,6 +51,8 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionResponseChoice]
     usage: Usage = Field(default_factory=Usage)
+    # Custom field to expose retrieved context separately (non-OpenAI standard)
+    context: Optional[List[str]] = None
 
 
 # --- FastAPI Application ---
@@ -91,20 +93,20 @@ async def chat_completions(request: ChatCompletionRequest):
         logger.exception("Error in RAG wrapper")
         raise HTTPException(status_code=500, detail=f"RAG error: {str(e)}") from e
 
-    # The wrapper's `chat` method returns a dict with a placeholder message
-    # and the retrieved context. We'll format this into an OpenAI-style response.
-    context_str = "\n\n--- Retrieved Context ---\n" + "\n".join(
-        wrapper_response.get("context", [])
-    )
+    # The wrapper's `chat` method returns a dict with the LLM message
+    # and the retrieved context. We return a proper OpenAI-compliant response
+    # with the pure message in choices, and include context as a separate field.
+    llm_message = wrapper_response.get("message", "No response from wrapper.")
+    retrieved_context = wrapper_response.get("context", [])
 
-    assistant_message_content = (
-        wrapper_response.get("message", "No response from wrapper.") + context_str
-    )
-
-    # Create the response payload
-    assistant_message = ChatMessage(role="assistant", content=assistant_message_content)
+    # Create the response payload - only the LLM message in the choice
+    assistant_message = ChatMessage(role="assistant", content=llm_message)
     choice = ChatCompletionResponseChoice(index=0, message=assistant_message)
-    response = ChatCompletionResponse(model=request.model, choices=[choice])
+    response = ChatCompletionResponse(
+        model=request.model,
+        choices=[choice],
+        context=retrieved_context if retrieved_context else None,
+    )
 
     logger.info("Successfully processed chat request")
     return response
