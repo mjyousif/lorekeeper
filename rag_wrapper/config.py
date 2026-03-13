@@ -35,8 +35,6 @@ class Config:
         log_level: str = "INFO",
         context_file: str | None = None,
         character_file: str | None = None,
-        allowed_user_ids: list[int] | None = None,
-        allowed_chat_ids: list[int] | None = None,
         **_unused: Any,
     ):
         self.files = files if files is not None else "data"
@@ -48,8 +46,6 @@ class Config:
         self.log_level = log_level
         self.context_file = context_file
         self.character_file = character_file
-        self.allowed_user_ids = allowed_user_ids or []
-        self.allowed_chat_ids = allowed_chat_ids or []
 
     @classmethod
     def from_file(cls, path: str | Path) -> Config:

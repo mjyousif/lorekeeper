@@ -1,109 +1,135 @@
-# LLM RAG Wrapper
+# RAG Wrapper
 
-This project is a wrapper around Large Language Model (LLM) calls that uses Retrieval-Augmented Generation (RAG) to provide context from a local set of files.
-
-## How it Works
-
-1. **Initialization**: You initialize the wrapper by providing a set of files.
-2. **Embedding Creation**: The wrapper creates vector embeddings from the content of these files.
-3. **Local Storage**: These embeddings are stored locally for efficient retrieval.
-4. **Session-based Interaction**: When you make a call, you provide a `session_id` and a `message`.
-5. **Contextual Augmentation**: The wrapper retrieves relevant information from the stored embeddings based on your message.
-6. **LLM Call with History**: The original message, retrieved context, and the conversation history (tracked via `session_id`) are all sent to the LLM to generate a comprehensive response.
+A simple, modular RAG (Retrieval-Augmented Generation) system with a clean vector storage abstraction, OpenAI-compatible API, Gradio UI, and Telegram bot integration.
 
 ## Features
 
-- **RAG from local files**: Automatically creates and manages a knowledge base from your documents.
-- **Session Management**: Maintains conversation history for coherent, multi-turn dialogues.
-- **Simple Interface**: Easy to integrate and use.
+- **Vector storage abstraction** – swap Chroma for FAISS, Qdrant, etc.
+- **Configuration file support** – YAML, TOML, or JSON
+- **OpenAI-compatible API** – `/v1/chat/completions` endpoint
+- **Gradio web UI** – interactive testing
+- **Telegram bot** – with user/chat authorization
+- **Fast, reproducible installs** – uses `uv`
 
-## Usage Example
+## Quick Start
 
-```python
-from rag_wrapper import RAGWrapper
+### Prerequisites
 
-# 1. Initialize the wrapper with your files
-file_paths = ["path/to/document1.txt", "path/to/document2.md"]
-wrapper = RAGWrapper(files=file_paths)
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip/venv
 
-# 2. Start a conversation (or continue one)
-session_id = "user123_session_abc"
-user_message = "What is the main topic of the documents?"
+### Install and Run
 
-# 3. Get the LLM's response
-response = wrapper.chat(session_id=session_id, message=user_message)
+```bash
+# Clone and enter the repository
+cd /path/to/rag-wrapper
 
-print(response)
+# Install dependencies (uses uv)
+uv sync --all-extras
 
-# Continue the conversation
-user_message_2 = "Can you elaborate on the first point?"
-response_2 = wrapper.chat(session_id=session_id, message=user_message_2)
+# Start the API server (on 127.0.0.1:8000)
+uv run uvicorn rag_wrapper.api:app --host 127.0.0.1 --port 8000
 
-print(response_2)
+# In another terminal, start the Gradio UI
+uv run python gradio_app.py
+
+# Or start the Telegram bot (requires TELEGRAM_BOT_TOKEN)
+uv run python telegram_bot.py
 ```
 
-## Development Setup
+### Managing Services
 
-This project uses [black](https://github.com/psf/black) for code formatting. To format your code:
+Use the included `chatter` CLI:
 
-```shell
-black .
+```bash
+./chatter start all       # Start API, UI, and Telegram bot
+./chatter stop all        # Stop all services
+./chatter logs            # Follow logs
+./chatter status          # Show running services
 ```
 
-## Running the API
+## Configuration
 
-The project includes a FastAPI server that exposes an OpenAI-compliant `/v1/chat/completions` endpoint.
+Create a `config.yaml` (or `.toml` / `.json`) in the project root:
 
-### 1. Setup
+```yaml
+files:
+  - "data"                # Directory or list of files to embed
+db_path: "db"             # Vector database directory
 
-First, create and activate a virtual environment. This keeps the project's dependencies isolated.
+llm:
+  model: "openrouter/stepfun/step-3.5-flash:free"
 
-```shell
-# Install development dependencies including black
-pip install -r requirements.txt
+chunk_size: 1000
+overlap: 200
+log_level: "INFO"
+
+# Optional: context and character files
+context_file: "context.txt"
+character_file: "character.txt"
+
+# Telegram bot authorization (optional)
+allowed_user_ids: []      # List of allowed Telegram user IDs
+allowed_chat_ids: []      # List of allowed Telegram chat IDs
 ```
 
-```shell
-# Create the virtual environment
-python -m venv .venv
+Then run with:
 
-# Activate on Windows
-.venv\Scripts\activate
-
-# On macOS/Linux, you would use:
-# source .venv/bin/activate
+```bash
+CONFIG_PATH=config.yaml uv run uvicorn rag_wrapper.api:app --host 127.0.0.1 --port 8000
 ```
 
-Next, install the required packages using pip.
+Or set `CONFIG_PATH` in your `.env` file.
 
-```shell
-pip install -r requirements.txt
+Environment variables also override config values (e.g., `OPENROUTER_API_KEY`).
+
+## Telegram Bot Authorization
+
+To restrict the bot to specific users or groups:
+
+1. Get user/chat IDs (see [telegram.md](telegram.md))
+2. Set either:
+   - Environment variables: `ALLOWED_USER_IDS` and/or `ALLOWED_CHAT_IDS` (comma-separated integers)
+   - Or include `allowed_user_ids` / `allowed_chat_ids` in your config file
+
+**Secure default:** if neither is set, the bot denies all access.
+
+## Testing
+
+```bash
+# Install test dependencies (if not using uv sync --all-extras)
+uv pip install -r tests/requirements-test.txt
+
+# Run tests
+pytest tests/ -v
+# or with coverage
+pytest tests/ --cov=rag_wrapper --cov-report=html
 ```
 
-### 2. Launch the Server
+Tests are also run automatically via GitHub Actions on PRs.
 
-Once the dependencies are installed, start the API server with `uvicorn`.
+## Project Structure
 
-```shell
-uvicorn rag_wrapper.api:app --reload
-```
+- `rag_wrapper/` – core library
+  - `wrapper.py` – main RAGWrapper class
+  - `vector_store.py` – VectorStore abstraction + ChromaVectorStore
+  - `config.py` – configuration loading
+  - `api.py` – FastAPI server
+- `telegram_bot.py` – Telegram bot integration
+- `gradio_app.py` – Gradio web UI
+- `chatter` – CLI for managing local services
 
-The server will be running at `http://127.0.0.1:8000`.
+## Development
 
-### 3. Interact with the Endpoint
+- Use `uv` for dependency management
+- Format code with `black` (`uv run black .`)
+- Tests live in `tests/`
+- Follow conventional commits for PRs
 
-You can send a POST request to the `/v1/chat/completions` endpoint using a tool like `curl`. The response will be a JSON object that mimics the OpenAI Chat Completions API format.
+## License
 
-```shell
-curl -X "POST" "http://127.0.0.1:8000/v1/chat/completions" \
-     -H "Content-Type: application/json" \
-     -d '{
-         "model": "local-rag-model",
-         "messages": [
-             {
-                 "role": "user",
-                 "content": "What is ChromaDB?"
-             }
-         ]
-     }'
-```
+MIT (or choose your license)
+
+---
+
+**Note:** The `data/` directory is not tracked. Place your `.txt`, `.md`, or `.pdf` files there and the wrapper will embed them on first run.

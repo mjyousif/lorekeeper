@@ -20,6 +20,9 @@ context_file: "data/meinhaus-lore-docs/CANONICAL_HISTORY.md"
 # Optional: path to character file (persona/system prompt additions)
 character_file: "data/character.md"
 
+allowed_user_ids:
+  - 69469318
+
 # LLM configuration (API keys should be in environment variables)
 llm:
   model: "openrouter/stepfun/step-3.5-flash:free"

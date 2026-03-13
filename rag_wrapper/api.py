@@ -1,4 +1,3 @@
-import os
 import time
 import uuid
 import logging
@@ -8,7 +7,6 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 from rag_wrapper.wrapper import RAGWrapper
-from rag_wrapper.config import Config
 
 # Configure logging
 logging.basicConfig(
@@ -19,19 +17,6 @@ logger = logging.getLogger(__name__)
 
 # Load .env if present (e.g., for OPENROUTER_API_KEY)
 load_dotenv()
-
-# Load configuration from config.yaml
-CONFIG_PATH = os.getenv("RAG_CONFIG_PATH", "config.yaml")
-try:
-    cfg = Config.from_file(CONFIG_PATH)
-    DB_PATH = cfg.db_path
-    FILES = cfg.files
-    LLM_MODEL = cfg.llm.get("model", "openrouter/stepfun/step-3.5-flash:free")
-except Exception as e:
-    logging.warning(f"Failed to load config from {CONFIG_PATH}: {e}. Using defaults.")
-    DB_PATH = "shared_db"
-    FILES = "data"
-    LLM_MODEL = "openrouter/stepfun/step-3.5-flash:free"
 
 # --- Pydantic Models for OpenAI Compatibility ---
 
@@ -66,8 +51,6 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionResponseChoice]
     usage: Usage = Field(default_factory=Usage)
-    # Custom field to expose retrieved context separately (non-OpenAI standard)
-    context: Optional[List[str]] = None
 
 
 # --- FastAPI Application ---
@@ -75,14 +58,9 @@ class ChatCompletionResponse(BaseModel):
 app = FastAPI()
 
 # Initialize the RAG Wrapper
-# In a real application, you might configure the files and db_path via
-# environment variables or a config file.  The wrapper now accepts a
-# directory and will scan it recursively for supported document types.
 logger.info("Initializing RAG Wrapper for API...")
 rag_wrapper = RAGWrapper(
-    files=FILES,
-    db_path=DB_PATH,
-    llm_model=LLM_MODEL,
+    files="data", db_path="api_db"  # point at the folder, not individual files
 )
 logger.info("Initialization complete.")
 
@@ -90,43 +68,78 @@ logger.info("Initialization complete.")
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(request: ChatCompletionRequest):
     """
-    OpenAI-compliant chat completions endpoint.
+    OpenAI-compatible chat completions endpoint.
+    Accepts full conversation history and returns the next assistant message,
+    with RAG context automatically injected.
     """
     if not request.messages:
         raise HTTPException(status_code=400, detail="Messages list cannot be empty.")
 
-    # Extract the last user message
-    user_message = request.messages[-1].content
-    logger.debug("Received chat request with message: %s", user_message[:100])
+    # Convert Pydantic messages to simple dicts
+    messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
-    # For now, we'll use a dummy session_id. In a real app, this might be
-    # managed via headers, API keys, or another mechanism.
-    session_id = "api_session_placeholder"
+    # Find the last user message for context retrieval
+    last_user_msg = None
+    for m in reversed(messages):
+        if m["role"] == "user":
+            last_user_msg = m["content"]
+            break
+    if last_user_msg is None:
+        raise HTTPException(status_code=400, detail="No user message found in conversation.")
 
+    logger.debug("Received chat request with last user message: %s", last_user_msg[:100])
+
+    # Retrieve relevant context from the RAG wrapper
     try:
-        # Use the RAG wrapper to get context and a placeholder response.
-        wrapper_response = rag_wrapper.chat(session_id=session_id, message=user_message)
+        context_chunks = rag_wrapper.get_relevant_context(last_user_msg)
+        context_str = "\n---\n".join(context_chunks) if context_chunks else "No relevant context found."
+        logger.debug("Retrieved %d context chunks", len(context_chunks))
     except Exception as e:
-        logger.exception("Error in RAG wrapper")
-        raise HTTPException(status_code=500, detail=f"RAG error: {str(e)}") from e
+        logger.exception("Error retrieving context")
+        raise HTTPException(status_code=500, detail=f"Context retrieval error: {str(e)}") from e
 
-    # The wrapper's `chat` method returns a dict with the LLM message
-    # and the retrieved context. We return a proper OpenAI-compliant response
-    # with the pure message in choices, and include context as a separate field.
-    llm_message = wrapper_response.get("message", "No response from wrapper.")
-    retrieved_context = wrapper_response.get("context", [])
-
-    # Create the response payload - only the LLM message in the choice
-    assistant_message = ChatMessage(role="assistant", content=llm_message)
-    choice = ChatCompletionResponseChoice(index=0, message=assistant_message)
-    response = ChatCompletionResponse(
-        model=request.model,
-        choices=[choice],
-        context=retrieved_context if retrieved_context else None,
+    # Build system message with context, additional context from file, and character
+    system_content = (
+        "You are a helpful assistant. Use the following retrieved context to answer the user's question. "
+        "If the context does not contain the answer, say so. Keep responses concise.\n\n"
+        f"Context:\n{context_str}\n\n"
     )
+    if rag_wrapper.context:
+        system_content += f"Key Context:\n{rag_wrapper.context}\n\n"
+    if rag_wrapper.character:
+        system_content += f"Character:\n{rag_wrapper.character}\n"
 
+    # Prepend the system message to the conversation
+    full_messages = [{"role": "system", "content": system_content.strip()}] + messages
+
+    # Call the LLM
+    try:
+        logger.debug("Calling LLM model: %s", rag_wrapper.llm_model)
+        response = litellm.completion(
+            model=rag_wrapper.llm_model,
+            messages=full_messages,
+            api_key=rag_wrapper.llm_api_key,
+            api_base=rag_wrapper.llm_api_base,
+        )
+        assistant_message = response.choices[0].message.content
+        logger.info("LLM call successful")
+    except Exception as e:
+        logger.exception("Error calling LLM")
+        raise HTTPException(status_code=500, detail=f"LLM error: {str(e)}") from e
+
+    # Build OpenAI-compatible response
+    assistant_msg_obj = ChatMessage(role="assistant", content=assistant_message)
+    choice = ChatCompletionResponseChoice(index=0, message=assistant_msg_obj, finish_reason="stop")
+    response_obj = ChatCompletionResponse(
+        id=f"chatcmpl-{uuid.uuid4().hex}",
+        object="chat.completion",
+        created=int(time.time()),
+        model=rag_wrapper.llm_model,
+        choices=[choice],
+        usage=Usage(),
+    )
     logger.info("Successfully processed chat request")
-    return response
+    return response_obj
 
 
 @app.get("/")
