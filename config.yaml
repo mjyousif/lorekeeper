@@ -1,0 +1,27 @@
+# RAGWrapper Configuration
+# This file centralizes settings for both Gradio UI and API
+
+# Data source: directory or list of files/directories to index
+files: "data"
+
+# Vector database path (shared between all interfaces)
+db_path: ".db"
+
+# Text chunking parameters
+chunk_size: 1000
+overlap: 200
+
+# Logging level (DEBUG, INFO, WARNING, ERROR)
+log_level: "INFO"
+
+# Optional: path to context file (global instructions/preface)
+context_file: "data/meinhaus-lore-docs/CANONICAL_HISTORY.md"
+
+# Optional: path to character file (persona/system prompt additions)
+character_file: "data/character.md"
+
+# LLM configuration (API keys should be in environment variables)
+llm:
+  model: "openrouter/stepfun/step-3.5-flash:free"
+  # api_key: from OPENROUTER_API_KEY env var
+  # api_base: optional, from OPENROUTER_API_BASE env var

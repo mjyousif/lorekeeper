@@ -15,11 +15,30 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import gradio as gr
 from rag_wrapper.wrapper import RAGWrapper
+from rag_wrapper.config import Config
 
-# Configuration
-DATA_DIR = os.getenv("RAG_DATA_DIR", "data")
-DB_PATH = os.getenv("RAG_DB_PATH", "gradio_db")
-LLM_MODEL = os.getenv("RAG_LLM_MODEL", "openrouter/stepfun/step-3.5-flash:free")
+# Load configuration from config.yaml
+CONFIG_PATH = os.getenv("RAG_CONFIG_PATH", "config.yaml")
+try:
+    cfg = Config.from_file(CONFIG_PATH)
+    DATA_DIR = cfg.files
+    DB_PATH = cfg.db_path
+    LLM_MODEL = cfg.llm.get("model", "openrouter/stepfun/step-3.5-flash:free")
+    CHUNK_SIZE = cfg.chunk_size
+    OVERLAP = cfg.overlap
+    LOG_LEVEL = cfg.log_level
+    CONTEXT_FILE = cfg.context_file
+    CHARACTER_FILE = cfg.character_file
+except Exception as e:
+    print(f"Warning: Failed to load config from {CONFIG_PATH}: {e}. Using defaults.")
+    DATA_DIR = os.getenv("RAG_DATA_DIR", "data")
+    DB_PATH = os.getenv("RAG_DB_PATH", "shared_db")
+    LLM_MODEL = os.getenv("RAG_LLM_MODEL", "openrouter/stepfun/step-3.5-flash:free")
+    CHUNK_SIZE = 1000
+    OVERLAP = 200
+    LOG_LEVEL = "INFO"
+    CONTEXT_FILE = None
+    CHARACTER_FILE = None
 
 # Initialize wrapper (lazy, will be created on first use)
 _wrapper: RAGWrapper | None = None

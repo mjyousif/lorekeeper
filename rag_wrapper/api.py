@@ -1,3 +1,4 @@
+import os
 import time
 import uuid
 import logging
@@ -7,6 +8,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 from rag_wrapper.wrapper import RAGWrapper
+from rag_wrapper.config import Config
 
 # Configure logging
 logging.basicConfig(
@@ -17,6 +19,19 @@ logger = logging.getLogger(__name__)
 
 # Load .env if present (e.g., for OPENROUTER_API_KEY)
 load_dotenv()
+
+# Load configuration from config.yaml
+CONFIG_PATH = os.getenv("RAG_CONFIG_PATH", "config.yaml")
+try:
+    cfg = Config.from_file(CONFIG_PATH)
+    DB_PATH = cfg.db_path
+    FILES = cfg.files
+    LLM_MODEL = cfg.llm.get("model", "openrouter/stepfun/step-3.5-flash:free")
+except Exception as e:
+    logging.warning(f"Failed to load config from {CONFIG_PATH}: {e}. Using defaults.")
+    DB_PATH = "shared_db"
+    FILES = "data"
+    LLM_MODEL = "openrouter/stepfun/step-3.5-flash:free"
 
 # --- Pydantic Models for OpenAI Compatibility ---
 
@@ -65,7 +80,9 @@ app = FastAPI()
 # directory and will scan it recursively for supported document types.
 logger.info("Initializing RAG Wrapper for API...")
 rag_wrapper = RAGWrapper(
-    files="data", db_path="api_db"  # point at the folder, not individual files
+    files=FILES,
+    db_path=DB_PATH,
+    llm_model=LLM_MODEL,
 )
 logger.info("Initialization complete.")
 
