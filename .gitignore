@@ -38,6 +38,10 @@ api_db/
 local_db/
 fresh_db/
 
+# Service runtime
+.run/
+.logs/
+
 # Chroma database files (binary index files)
 **/data_level0.bin
 **/header.bin

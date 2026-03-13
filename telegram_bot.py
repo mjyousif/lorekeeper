@@ -3,6 +3,7 @@ import json
 import sqlite3
 import logging
 import requests
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -11,6 +12,9 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+
+# Load .env file automatically
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -76,7 +80,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     messages.append({"role": "user", "content": user_msg})
 
     # Call rag-wrapper (OpenAI format)
-    payload = {"messages": messages}
+    # Include model parameter as required by OpenAI spec
+    model = os.getenv("OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free")
+    payload = {"model": model, "messages": messages}
     try:
         logger.debug("Calling RAG endpoint: %s", RAG_ENDPOINT)
         resp = requests.post(RAG_ENDPOINT, json=payload, timeout=60)
@@ -94,6 +100,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(messages) > 20:
         messages = messages[-20:]
     set_history(chat_id, messages)
+
+    # Telegram message limit is 4096 characters, truncate if needed
+    max_length = 4096
+    if len(assistant_msg) > max_length:
+        assistant_msg = assistant_msg[:max_length-50] + "...\n\n[Message truncated due to Telegram limit]"
 
     await update.message.reply_text(assistant_msg)
 
