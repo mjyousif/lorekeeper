@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml",
     "toml",
     "python-telegram-bot>=22.6",
+    "telegramify-markdown>=1.1.0",
 ]
 
 [project.optional-dependencies]

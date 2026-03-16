@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from dotenv import load_dotenv
-
+import litellm
 from rag_wrapper.wrapper import RAGWrapper
 from rag_wrapper.config import Config
 

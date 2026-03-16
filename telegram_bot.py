@@ -13,6 +13,10 @@ from telegram.ext import (
     filters,
 )
 from rag_wrapper.config import Config
+from telegramify_markdown import convert
+
+# Load .env file automatically
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -140,6 +144,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_msg = update.message.text
     logger.info("Received message from chat_id %d: %s", chat_id, user_msg[:100])
 
+    # Show typing indicator to user
+    await update.message.chat.send_action("typing")
+
     # Load conversation history
     messages = get_history(chat_id)
     messages.append({"role": "user", "content": user_msg})
@@ -159,8 +166,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("Error contacting RAG service")
         assistant_msg = f"Error contacting RAG service: {e}"
 
+    # Format message for Telegram using telegramify-markdown
+    text, entities = convert(assistant_msg)
+
     # Append assistant reply and save history
-    messages.append({"role": "assistant", "content": assistant_msg})
+    messages.append({"role": "assistant", "content": text})
     # Trim history to last 20 messages (10 turns) to cap token usage
     if len(messages) > 20:
         messages = messages[-20:]
@@ -168,10 +178,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Telegram message limit is 4096 characters, truncate if needed
     max_length = 4096
-    if len(assistant_msg) > max_length:
-        assistant_msg = assistant_msg[:max_length-50] + "...\n\n[Message truncated due to Telegram limit]"
+    if len(text) > max_length:
+        text = text[:max_length-50] + "...\n\n[Message truncated due to Telegram limit]"
 
-    await update.message.reply_text(assistant_msg)
+    await update.message.reply_text(text, entities=[e.to_dict() for e in entities])
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

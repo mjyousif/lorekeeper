@@ -186,7 +186,9 @@ class RAGWrapper:
                 # Only chunk files larger than threshold (configurable)
                 chunk_threshold = int(os.getenv("RAG_CHUNK_THRESHOLD", "10000"))
                 if len(content) > chunk_threshold:
-                    chunks = self._chunk_text(content, chunk_size=self.chunk_size, overlap=self.overlap)
+                    chunks = self._chunk_text(
+                        content, chunk_size=self.chunk_size, overlap=self.overlap
+                    )
                 else:
                     chunks = [content]  # Store small files as single chunk
 
