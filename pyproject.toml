@@ -7,26 +7,28 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
-    "openai",
     "chromadb",
     "sentence-transformers",
     "pypdf",
     "litellm",
     "python-dotenv",
-    "black",
     "pyyaml",
     "toml",
+    "pydantic-settings",
     "python-telegram-bot>=22.6",
     "telegramify-markdown>=1.1.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
+ui = ["gradio>=4.0.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-mock>=3.10.0",
     "pytest-cov>=4.0.0",
-    "gradio>=4.0.0",
+    "black",
+    "ruff",
 ]
 
-[tool.uv]
-dev-dependencies = ["pytest", "pytest-mock", "pytest-cov", "gradio"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: marks tests as integration tests (deselect with '-m not integration')"]
