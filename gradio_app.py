@@ -18,24 +18,25 @@ from rag_wrapper.wrapper import RAGWrapper
 from rag_wrapper.config import Config
 
 # Load configuration from config.yaml
-CONFIG_PATH = os.getenv("RAG_CONFIG_PATH", "config.yaml")
 try:
-    cfg = Config.from_file(CONFIG_PATH)
+    cfg = Config.from_file("config.yaml")
     DATA_DIR = cfg.files
     DB_PATH = cfg.db_path
     LLM_MODEL = cfg.llm.get("model", "openrouter/stepfun/step-3.5-flash:free")
     CHUNK_SIZE = cfg.chunk_size
     OVERLAP = cfg.overlap
+    CHUNK_THRESHOLD = cfg.chunk_threshold
     LOG_LEVEL = cfg.log_level
     CONTEXT_FILE = cfg.context_file
     CHARACTER_FILE = cfg.character_file
 except Exception as e:
-    print(f"Warning: Failed to load config from {CONFIG_PATH}: {e}. Using defaults.")
-    DATA_DIR = os.getenv("RAG_DATA_DIR", "data")
-    DB_PATH = os.getenv("RAG_DB_PATH", "shared_db")
-    LLM_MODEL = os.getenv("RAG_LLM_MODEL", "openrouter/stepfun/step-3.5-flash:free")
+    print(f"Warning: Failed to load config from config.yaml: {e}. Using hardcoded defaults.")
+    DATA_DIR = "data"
+    DB_PATH = "shared_db"
+    LLM_MODEL = "openrouter/stepfun/step-3.5-flash:free"
     CHUNK_SIZE = 1000
     OVERLAP = 200
+    CHUNK_THRESHOLD = 10000
     LOG_LEVEL = "INFO"
     CONTEXT_FILE = None
     CHARACTER_FILE = None
@@ -52,6 +53,7 @@ def get_wrapper():
             files=DATA_DIR,
             db_path=DB_PATH,
             llm_model=LLM_MODEL,
+            chunk_threshold=CHUNK_THRESHOLD,
         )
     return _wrapper
 

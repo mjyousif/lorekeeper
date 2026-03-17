@@ -18,7 +18,7 @@ class TestRAGWrapperInitialization:
         data_dir.mkdir()
         (data_dir / "doc1.txt").write_text("Content 1")
 
-        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db")), chunk_threshold=10000, chunk_threshold=10000
 
         assert wrapper.files == [str(data_dir / "doc1.txt")]
 
@@ -31,7 +31,7 @@ class TestRAGWrapperInitialization:
 
         wrapper = RAGWrapper(
             files=[str(file1), str(file2)], db_path=str(tmp_path / "db")
-        )
+        ), chunk_threshold=10000
 
         assert len(wrapper.files) == 2
 
@@ -45,21 +45,21 @@ class TestRAGWrapperInitialization:
 
         wrapper = RAGWrapper(
             files=[str(data_dir), str(file1)], db_path=str(tmp_path / "db")
-        )
+        ), chunk_threshold=10000
 
         assert len(wrapper.files) == 2
 
     def test_init_creates_sessions_dict(self, tmp_path):
         """Should initialize empty sessions dict."""
         (tmp_path / "doc.txt").write_text("Test content")
-        wrapper = RAGWrapper(files=str(tmp_path), db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(files=str(tmp_path), db_path=str(tmp_path / "db")), chunk_threshold=10000
 
         assert wrapper.sessions == {}
 
     def test_init_scans_files_and_updates_manifest(self, tmp_path):
         """Should scan files and populate manifest."""
         (tmp_path / "doc.txt").write_text("Test content")
-        wrapper = RAGWrapper(files=str(tmp_path), db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(files=str(tmp_path), db_path=str(tmp_path / "db")), chunk_threshold=10000
 
         assert len(wrapper._manifest) > 0
         assert str(tmp_path / "doc.txt") in wrapper._manifest
@@ -72,7 +72,7 @@ class TestRAGWrapperInitialization:
 
         wrapper = RAGWrapper(
             files=str(tmp_path), db_path=str(tmp_path / "db"), vector_store=mock_store
-        )
+        ), chunk_threshold=10000
 
         assert wrapper.vector_store is mock_store
 
@@ -81,7 +81,7 @@ class TestRAGWrapperInitialization:
         (tmp_path / "doc.txt").write_text(" teaches .")
         db_path = str(tmp_path / "db")
 
-        wrapper = RAGWrapper(files=str(tmp_path), db_path=db_path)
+        wrapper = RAGWrapper(files=str(tmp_path), db_path=db_path), chunk_threshold=10000
 
         # Verify the vector store has data
         assert wrapper.vector_store.count() > 0
@@ -114,7 +114,7 @@ class TestRAGWrapperFileOperations:
         data_dir.mkdir()
         (data_dir / "doc1.txt").write_text("Short content.")
         (data_dir / "doc2.txt").write_text("X" * 3000)  # Long content
-        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db")), chunk_threshold=10000, chunk_threshold=10000
         return wrapper
 
     def test_resolve_files_single_file(self, tmp_path):
@@ -135,7 +135,7 @@ class TestRAGWrapperFileOperations:
         (subdir / "nested.md").write_text("nested")
         (subdir / "ignore.jpg").write_text("image")
 
-        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db")), chunk_threshold=10000, chunk_threshold=10000
         resolved = wrapper._resolve_files(str(data_dir))
 
         assert len(resolved) == 2
@@ -153,7 +153,7 @@ class TestRAGWrapperFileOperations:
         (data_dir / "doc.py").write_text("python")
         (data_dir / "doc.json").write_text("json")
 
-        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db"))
+        wrapper = RAGWrapper(files=str(data_dir), db_path=str(tmp_path / "db")), chunk_threshold=10000, chunk_threshold=10000
         resolved = wrapper._resolve_files(str(data_dir))
 
         assert len(resolved) == 3
@@ -224,7 +224,7 @@ class TestRAGWrapperManifestAndRebuild:
         file2.write_text("Content 2")
 
         db_path = str(tmp_path / "db")
-        wrapper = RAGWrapper(files=str(data_dir), db_path=db_path)
+        wrapper = RAGWrapper(files=str(data_dir), db_path=db_path), chunk_threshold=10000
         return wrapper, data_dir, file1, file2
 
     def test_scan_files_returns_mtime_and_size(self, wrapper_with_files):
@@ -297,7 +297,7 @@ class TestRAGWrapperVectorStoreIntegration:
         )
         (data_dir / ".txt").write_text(" is the evil religion of .")
         db_path = str(tmp_path / "db")
-        wrapper = RAGWrapper(files=str(data_dir), db_path=db_path)
+        wrapper = RAGWrapper(files=str(data_dir), db_path=db_path), chunk_threshold=10000
         return wrapper
 
     def test_get_relevant_context_returns_matches(self, wrapper):
@@ -340,7 +340,7 @@ class TestRAGWrapperVectorStoreIntegration:
         custom_store = CustomStore(db_path=str(tmp_path / "custom_db"))
         wrapper = RAGWrapper(
             files=str(data_dir), db_path=str(tmp_path / "db"), vector_store=custom_store
-        )
+        ), chunk_threshold=10000
 
         assert isinstance(wrapper.vector_store, CustomStore)
         assert wrapper.vector_store.count() > 0
@@ -367,7 +367,7 @@ class TestRAGWrapperChat:
             db_path=db_path,
             llm_model="test-model",
             llm_api_key="test-key",
-        )
+        ), chunk_threshold=10000
         return wrapper
 
     def test_chat_creates_new_session_if_not_exists(self, wrapper):
@@ -475,21 +475,6 @@ class TestRAGWrapperChat:
         response = wrapper.chat(session_id="test", message="Hello")
         assert "LLM not configured" in response["message"]
 
-    def test_chat_uses_environment_api_key(self, tmp_path):
-        """Should fall back to OPENROUTER_API_KEY environment variable."""
-        data_dir = tmp_path / "data"
-        data_dir.mkdir()
-        (data_dir / "doc.txt").write_text("Content")
-
-        os.environ["OPENROUTER_API_KEY"] = "env-key"
-        try:
-            wrapper = RAGWrapper(
-                files=str(data_dir), db_path=str(tmp_path / "db"), llm_api_key=None
-            )
-            assert wrapper.llm_api_key == "env-key"
-        finally:
-            del os.environ["OPENROUTER_API_KEY"]
-
     def test_chat_rebuilds_on_file_change(self, wrapper, tmp_path):
         """chat should rebuild index if underlying files change."""
         data_dir = tmp_path / "data"
@@ -556,7 +541,7 @@ class TestRAGWrapperEndToEnd:
             files=str(data_dir),
             db_path=str(tmp_path / "db"),
             llm_api_key=os.environ.get("OPENROUTER_API_KEY"),
-        )
+        ), chunk_threshold=10000
 
         # Verify data was embedded
         assert wrapper.vector_store.count() > 0

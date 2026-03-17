@@ -5,7 +5,6 @@ import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from dotenv import load_dotenv
 import litellm
 from rag_wrapper.wrapper import RAGWrapper
 from rag_wrapper.config import Config
@@ -17,18 +16,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load .env if present (e.g., for OPENROUTER_API_KEY)
-load_dotenv()
-
 # Load configuration from config.yaml
-CONFIG_PATH = os.getenv("RAG_CONFIG_PATH", "config.yaml")
 try:
-    cfg = Config.from_file(CONFIG_PATH)
+    cfg = Config.from_file("config.yaml")
     DB_PATH = cfg.db_path
     FILES = cfg.files
     LLM_MODEL = cfg.llm.get("model", "openrouter/stepfun/step-3.5-flash:free")
 except Exception as e:
-    logging.warning(f"Failed to load config from {CONFIG_PATH}: {e}. Using defaults.")
+    logging.warning(f"Failed to load config from config.yaml: {e}. Using defaults.")
     DB_PATH = "shared_db"
     FILES = "data"
     LLM_MODEL = "openrouter/stepfun/step-3.5-flash:free"
@@ -83,6 +78,7 @@ rag_wrapper = RAGWrapper(
     files=FILES,
     db_path=DB_PATH,
     llm_model=LLM_MODEL,
+    chunk_threshold=cfg.chunk_threshold,
 )
 logger.info("Initialization complete.")
 

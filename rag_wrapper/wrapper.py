@@ -21,6 +21,7 @@ class RAGWrapper:
         log_level: str = "INFO",
         chunk_size: int | None = None,
         overlap: int | None = None,
+        chunk_threshold: int,
         context_file: str | None = None,
         character_file: str | None = None,
         config_path: str | None = None,
@@ -54,31 +55,21 @@ class RAGWrapper:
         else:
             self.vector_store = ChromaVectorStore(db_path=self.db_path)
 
+        # Chunking parameters: explicit > config
+        self.chunk_size = chunk_size if chunk_size is not None else cfg.chunk_size
+        self.overlap = overlap if overlap is not None else cfg.overlap
+        self.chunk_threshold = chunk_threshold
+
         self._load_and_embed_files()
 
-        # LLM configuration: explicit > config.llm > environment
+        # LLM configuration: explicit > config.llm
         llm_cfg = cfg.llm
-        self.llm_model = (
-            llm_model
-            or llm_cfg.get("model")
-            or os.getenv("OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free")
-        )
-        self.llm_api_key = (
-            llm_api_key
-            or llm_cfg.get("api_key")
-            or os.getenv("OPENROUTER_API_KEY")
-            or os.getenv("LLM_API_KEY")
-        )
-        self.llm_api_base = (
-            llm_api_base
-            or llm_cfg.get("api_base")
-            or os.getenv("OPENROUTER_API_BASE")
-            or os.getenv("LLM_API_BASE")
-        )
-
-        # Context and character files: explicit > config > env
-        ctx_file = context_file or cfg.context_file or os.getenv("CONTEXT_FILE")
-        char_file = character_file or cfg.character_file or os.getenv("CHARACTER_FILE")
+        self.llm_model = llm_model or llm_cfg.get("model")
+        self.llm_api_key = llm_api_key or llm_cfg.get("api_key")
+        self.llm_api_base = llm_api_base or llm_cfg.get("api_base")
+        # Context and character files: explicit > config
+        self.context = ""
+        ctx_file = context_file or cfg.context_file
         if ctx_file:
             try:
                 with open(ctx_file, "r", encoding="utf-8") as f:
@@ -86,8 +77,9 @@ class RAGWrapper:
                 logger.info("Loaded context from %s", ctx_file)
             except Exception as e:
                 logger.error("Failed to read context file %s: %s", ctx_file, e)
-        else:
-            self.context = ""
+        
+        self.character = ""
+        char_file = character_file or cfg.character_file
         if char_file:
             try:
                 with open(char_file, "r", encoding="utf-8") as f:
@@ -95,12 +87,7 @@ class RAGWrapper:
                 logger.info("Loaded character from %s", char_file)
             except Exception as e:
                 logger.error("Failed to read character file %s: %s", char_file, e)
-        else:
-            self.character = ""
 
-        # Chunking parameters: explicit > config > hardcoded defaults
-        self.chunk_size = chunk_size if chunk_size is not None else cfg.chunk_size
-        self.overlap = overlap if overlap is not None else cfg.overlap
 
         # Track data file manifest for auto‑rebuild
         # self._file_spec already set above (raw spec)
@@ -183,9 +170,8 @@ class RAGWrapper:
         for file_path in self.files:
             try:
                 content = self._read_file(file_path)
-                # Only chunk files larger than threshold (configurable)
-                chunk_threshold = int(os.getenv("RAG_CHUNK_THRESHOLD", "10000"))
-                if len(content) > chunk_threshold:
+                # Only chunk files larger than threshold (from config)
+                if len(content) > self.chunk_threshold:
                     chunks = self._chunk_text(
                         content, chunk_size=self.chunk_size, overlap=self.overlap
                     )
@@ -313,7 +299,7 @@ if __name__ == "__main__":
         f.write("The sky is blue and the grass is green. The sun is a star.")
 
     # show that passing the directory will automatically pick up both files
-    rag_wrapper = RAGWrapper(files="test_docs", db_path="local_db")
+    rag_wrapper = RAGWrapper(files="test_docs", db_path="local_db", chunk_threshold=10000)
 
     # --- Test Chat ---
     session_id = "test_session_123"

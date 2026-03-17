@@ -3,10 +3,11 @@
 Chatter CLI - Manage the RAG chatbot system.
 
 Usage:
-  chatter start [api|telegram|ui|all]  Start one or all services in background
+  chatter start [--restart] [api|telegram|ui|all]  Start one or all services in background
   chatter stop [api|telegram|ui|all]   Stop services
   chatter logs [api|telegram]          Follow logs (default: both)
   chatter status                       Show which services are running
+  chatter purge-logs                   Clear all log files before starting
   Chatter help                       Show this help
 """
 
@@ -106,16 +107,38 @@ def wait_for_service(service: str, timeout: int = 60) -> bool:
     return False
 
 
-def start_service(service: str):
+def purge_logs():
+    """Clear all log files in the .logs directory."""
+    if LOG_DIR.exists():
+        log_files = list(LOG_DIR.glob("*.log"))
+        if log_files:
+            logger.info(f"Purging {len(log_files)} log file(s) from {LOG_DIR}")
+            for log_file in log_files:
+                try:
+                    log_file.unlink()
+                    logger.debug(f"Removed log file: {log_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove log file {log_file}: {e}")
+        else:
+            logger.info("No log files to purge")
+    else:
+        logger.info("Log directory does not exist, skipping purge")
+
+
+def start_service(service: str, restart: bool = False):
     if is_running(service):
-        logger.info(f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})")
-        return
+        if restart:
+            logger.info(f"[{service}] Already running, stopping first (restart mode)...")
+            stop_service(service)
+        else:
+            logger.info(f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})")
+            return
 
     # Check dependencies first
     for dep in SERVICES[service].get("depends_on", []):
         if not is_running(dep):
             logger.info(f"[{service}] Dependency '{dep}' is not running. Starting it first...")
-            start_service(dep)
+            start_service(dep, restart=restart)
         # Wait for dependency to be ready
         if not wait_for_service(dep):
             logger.error(f"[{service}] Dependency '{dep}' failed to start. Aborting.")
@@ -204,16 +227,31 @@ def main(argv: list[str] | None = None):
         print(__doc__)
         return 0
 
+    if command == "purge-logs":
+        purge_logs()
+        return 0
+
     if command == "start":
         services = args if args else ["all"]
+        
+        # Check for --restart flag in original args
+        restart = "--restart" in services
+        if restart:
+            services.remove("--restart")
+        
+        # Expand "all" to list of services
         if "all" in services:
             services = list(SERVICES.keys())
+        
+        # Purge logs before starting
+        purge_logs()
+        
         for s in services:
             if s not in SERVICES:
                 logger.error(f"Unknown service: {s}")
                 print(__doc__)
                 return 1
-            start_service(s)
+            start_service(s, restart=restart)
 
     elif command == "stop":
         services = args if args else ["all"]

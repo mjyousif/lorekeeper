@@ -3,7 +3,6 @@ import json
 import sqlite3
 import logging
 import requests
-from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -15,9 +14,6 @@ from telegram.ext import (
 from rag_wrapper.config import Config
 from telegramify_markdown import convert
 
-# Load .env file automatically
-load_dotenv()
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -25,32 +21,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load .env file automatically
-load_dotenv()
-
-# Load optional config file for authorization
+# Load config from config.yaml
 config = Config()
-config_path = os.getenv("CONFIG_PATH")
-if config_path:
-    try:
-        config = Config.from_file(config_path)
-        logger.info("Loaded Telegram bot config from %s", config_path)
-    except Exception as e:
-        logger.warning("Failed to load config from %s: %s", config_path, e)
+try:
+    config = Config.from_file("config.yaml")
+    logger.info("Loaded config from config.yaml")
+except Exception as e:
+    logger.warning("Failed to load config from config.yaml: %s", e)
 
 # Authorization configuration
-def get_allowlist_from_env(env_var: str, fallback: list[int]) -> set[int]:
-    """Read comma-separated ints from env, or use fallback from config."""
-    raw = os.getenv(env_var)
-    if raw and raw.strip():
-        try:
-            return {int(x.strip()) for x in raw.split(",") if x.strip()}
-        except ValueError as e:
-            logger.error("Invalid %s value: %s", env_var, e)
-    return set(fallback) if fallback else set()
-
-ALLOWED_USER_IDS = get_allowlist_from_env("ALLOWED_USER_IDS", config.allowed_user_ids)
-ALLOWED_CHAT_IDS = get_allowlist_from_env("ALLOWED_CHAT_IDS", config.allowed_chat_ids)
+ALLOWED_USER_IDS = set(config.allowed_user_ids or [])
+ALLOWED_CHAT_IDS = set(config.allowed_chat_ids or [])
 
 logger.info(
     "Authorization configured: %d allowed users, %d allowed chats",
@@ -61,7 +42,7 @@ logger.info(
 def is_authorized(update: Update) -> bool:
     """Check if the user/chat is authorized to use the bot.
 
-    Default: deny all unless at least one ALLOWED_* variable is set.
+    Default: deny all unless at least one allowlist is set.
     """
     user = update.effective_user
     chat = update.effective_chat
@@ -82,9 +63,15 @@ def is_authorized(update: Update) -> bool:
 
     return False
 
-# Configuration
-RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://127.0.0.1:8000/v1/chat/completions")
-DB_PATH = os.getenv("SESSION_DB", "sessions.db")
+# Configuration - read from config.telegram
+telegram_cfg = getattr(config, 'telegram', {})
+RAG_ENDPOINT = telegram_cfg.get("endpoint", "http://127.0.0.1:8000/v1/chat/completions")
+DB_PATH = "sessions.db"  # Hardcoded default for session history
+TELEGRAM_BOT_TOKEN = telegram_cfg.get("bot_token")
+
+if not TELEGRAM_BOT_TOKEN:
+    logger.error("TELEGRAM_BOT_TOKEN not set in config")
+    raise RuntimeError("TELEGRAM_BOT_TOKEN not configured")
 
 
 # Initialize SQLite DB for per-chat history
@@ -152,8 +139,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     messages.append({"role": "user", "content": user_msg})
 
     # Call rag-wrapper (OpenAI format)
-    # Include model parameter as required by OpenAI spec
-    model = os.getenv("OPENROUTER_MODEL", "openrouter/stepfun/step-3.5-flash:free")
+    # Use model from config.llm
+    model = config.llm.get("model")
     payload = {"model": model, "messages": messages}
     try:
         logger.debug("Calling RAG endpoint: %s", RAG_ENDPOINT)
@@ -198,12 +185,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
+    if not TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN not set")
         raise RuntimeError("TELEGRAM_BOT_TOKEN not set")
     logger.info("Starting Telegram bot")
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
