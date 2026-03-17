@@ -1,7 +1,8 @@
 import json
 import sqlite3
 import logging
-import requests
+from functools import lru_cache
+
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -10,7 +11,8 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-from rag_wrapper.config import get_config
+from src.config import get_config
+from src.wrapper import RAGWrapper
 from telegramify_markdown import convert
 
 logging.basicConfig(
@@ -19,10 +21,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Single config load
 config = get_config()
 
-# Authorization
 ALLOWED_USER_IDS = set(config.allowed_user_ids or [])
 ALLOWED_CHAT_IDS = set(config.allowed_chat_ids or [])
 logger.info(
@@ -31,9 +31,7 @@ logger.info(
     len(ALLOWED_CHAT_IDS),
 )
 
-# Telegram config
 telegram_cfg = config.telegram or {}
-RAG_ENDPOINT = telegram_cfg.get("endpoint", "http://127.0.0.1:8000/v1/chat/completions")
 DB_PATH = telegram_cfg.get("session_db", "sessions.db")
 TELEGRAM_BOT_TOKEN = telegram_cfg.get("bot_token")
 
@@ -41,12 +39,16 @@ if not TELEGRAM_BOT_TOKEN:
     logger.error("TELEGRAM_BOT_TOKEN not set in config.telegram.bot_token")
     raise RuntimeError("TELEGRAM_BOT_TOKEN not configured")
 
-# LLM model from config
-LLM_MODEL = (config.llm or {}).get("model", "openrouter/stepfun/step-3.5-flash:free")
+
+@lru_cache()
+def get_wrapper() -> RAGWrapper:
+    logger.info("Initializing RAG Wrapper for Telegram bot...")
+    wrapper = RAGWrapper(config)
+    logger.info("RAG Wrapper initialization complete.")
+    return wrapper
 
 
 def is_authorized(update: Update) -> bool:
-    """Check if the user/chat is authorized. Denies all if no allowlist is configured."""
     user = update.effective_user
     chat = update.effective_chat
 
@@ -130,27 +132,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.chat.send_action("typing")
 
+    wrapper = get_wrapper()
     messages = get_history(chat_id)
-    messages.append({"role": "user", "content": user_msg})
 
-    payload = {"model": LLM_MODEL, "messages": messages}
+    # Sync SQLite history into wrapper session so context is preserved on restart
+    session_id = str(chat_id)
+    if session_id not in wrapper.sessions:
+        wrapper.sessions[session_id] = messages
+
     try:
-        logger.debug("Calling RAG endpoint: %s", RAG_ENDPOINT)
-        resp = requests.post(RAG_ENDPOINT, json=payload, timeout=60)
-        resp.raise_for_status()
-        data = resp.json()
-        assistant_msg = data["choices"][0]["message"]["content"]
+        response = wrapper.chat(session_id=session_id, message=user_msg)
+        assistant_msg = response["message"]
         logger.info("RAG response received for chat_id %d", chat_id)
     except Exception as e:
-        logger.exception("Error contacting RAG service")
-        assistant_msg = f"Error contacting RAG service: {e}"
+        logger.exception("Error in RAG wrapper")
+        assistant_msg = f"Error generating response: {e}"
 
     text, entities = convert(assistant_msg)
 
-    messages.append({"role": "assistant", "content": text})
-    if len(messages) > 20:
-        messages = messages[-20:]
-    set_history(chat_id, messages)
+    # Persist updated history to SQLite
+    updated_history = wrapper.sessions.get(session_id, [])
+    if len(updated_history) > 20:
+        updated_history = updated_history[-20:]
+        wrapper.sessions[session_id] = updated_history
+    set_history(chat_id, updated_history)
 
     if len(text) > 4096:
         text = text[:4046] + "...\n\n[Message truncated due to Telegram limit]"
