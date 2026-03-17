@@ -1,35 +1,25 @@
-import os
 import time
 import uuid
 import logging
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from typing import List, Optional
-import litellm
-from rag_wrapper.wrapper import RAGWrapper
-from rag_wrapper.config import Config
+from functools import lru_cache
 
-# Configure logging
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel, Field
+from typing import Annotated, List, Optional
+import litellm
+
+from rag_wrapper.wrapper import RAGWrapper
+from rag_wrapper.vector_store import VectorStore
+from rag_wrapper.config import Config, get_config
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# Load configuration from config.yaml
-try:
-    cfg = Config.from_file("config.yaml")
-    DB_PATH = cfg.db_path
-    FILES = cfg.files
-    LLM_MODEL = cfg.llm.get("model", "openrouter/stepfun/step-3.5-flash:free")
-except Exception as e:
-    logging.warning(f"Failed to load config from config.yaml: {e}. Using defaults.")
-    DB_PATH = "shared_db"
-    FILES = "data"
-    LLM_MODEL = "openrouter/stepfun/step-3.5-flash:free"
 
 # --- Pydantic Models for OpenAI Compatibility ---
-
 
 class ChatMessage(BaseModel):
     role: str
@@ -39,7 +29,6 @@ class ChatMessage(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
-    # We'll ignore other parameters like temperature, stream, etc. for now
 
 
 class ChatCompletionResponseChoice(BaseModel):
@@ -61,60 +50,57 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionResponseChoice]
     usage: Usage = Field(default_factory=Usage)
-    # Custom field to expose retrieved context separately (non-OpenAI standard)
     context: Optional[List[str]] = None
+
+
+# --- Dependency Factories ---
+
+ConfigDep = Annotated[Config, Depends(get_config)]
+
+
+@lru_cache()
+def get_rag_wrapper() -> RAGWrapper:
+    config = get_config()
+    logger.info("Initializing RAG Wrapper...")
+    wrapper = RAGWrapper(config)
+    logger.info("RAG Wrapper initialization complete.")
+    return wrapper
+
+RAGDep = Annotated[RAGWrapper, Depends(get_rag_wrapper)]
 
 
 # --- FastAPI Application ---
 
 app = FastAPI()
 
-# Initialize the RAG Wrapper
-# In a real application, you might configure the files and db_path via
-# environment variables or a config file.  The wrapper now accepts a
-# directory and will scan it recursively for supported document types.
-logger.info("Initializing RAG Wrapper for API...")
-rag_wrapper = RAGWrapper(
-    files=FILES,
-    db_path=DB_PATH,
-    llm_model=LLM_MODEL,
-    chunk_threshold=cfg.chunk_threshold,
-)
-logger.info("Initialization complete.")
-
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
-async def chat_completions(request: ChatCompletionRequest):
-    """
-    OpenAI-compliant chat completions endpoint.
-    """
+async def chat_completions(
+    request: ChatCompletionRequest,
+    rag: RAGDep,
+):
     if not request.messages:
         raise HTTPException(status_code=400, detail="Messages list cannot be empty.")
 
-    # Extract the last user message
     user_message = request.messages[-1].content
     logger.debug("Received chat request with message: %s", user_message[:100])
 
-    # For now, we'll use a dummy session_id. In a real app, this might be
-    # managed via headers, API keys, or another mechanism.
+    # For now, use a placeholder session. In production, derive from auth/headers.
     session_id = "api_session_placeholder"
 
     try:
-        # Use the RAG wrapper to get context and a placeholder response.
-        wrapper_response = rag_wrapper.chat(session_id=session_id, message=user_message)
+        wrapper_response = rag.chat(session_id=session_id, message=user_message)
     except Exception as e:
         logger.exception("Error in RAG wrapper")
         raise HTTPException(status_code=500, detail=f"RAG error: {str(e)}") from e
 
-    # The wrapper's `chat` method returns a dict with the LLM message
-    # and the retrieved context. We return a proper OpenAI-compliant response
-    # with the pure message in choices, and include context as a separate field.
     llm_message = wrapper_response.get("message", "No response from wrapper.")
     retrieved_context = wrapper_response.get("context", [])
 
-    # Create the response payload - only the LLM message in the choice
-    assistant_message = ChatMessage(role="assistant", content=llm_message)
-    choice = ChatCompletionResponseChoice(index=0, message=assistant_message)
+    choice = ChatCompletionResponseChoice(
+        index=0,
+        message=ChatMessage(role="assistant", content=llm_message),
+    )
     response = ChatCompletionResponse(
         model=request.model,
         choices=[choice],
@@ -128,6 +114,4 @@ async def chat_completions(request: ChatCompletionRequest):
 @app.get("/")
 def read_root():
     logger.info("Health check endpoint called")
-    return {
-        "message": "RAG Wrapper API is running. POST to /v1/chat/completions to interact."
-    }
+    return {"message": "RAG Wrapper API is running. POST to /v1/chat/completions to interact."}

@@ -1,30 +1,23 @@
-"""Vector storage abstraction for RAG.
-
-Provides a clean black-box interface for embedding storage and retrieval.
-"""
-
 from __future__ import annotations
 
+import uuid
+from abc import ABC, abstractmethod
 from typing import Any, Optional
 from pathlib import Path
 
+try:
+    import chromadb
+    from sentence_transformers import SentenceTransformer
+except ImportError as e:
+    raise ImportError(
+        "Install required dependencies: pip install chromadb sentence-transformers"
+    ) from e
 
-class VectorStore:
-    """Abstract interface for vector storage backends.
 
-    Implementations must provide methods for inserting documents and querying
-    by similarity.
-    """
+class VectorStore(ABC):
+    """Abstract interface for vector storage backends."""
 
-    def __init__(self, db_path: str | Path, embedding_model: Any = None):
-        """Initialize the vector store.
-
-        Args:
-            db_path: Path to the database/storage directory
-            embedding_model: Optional embedding model instance
-        """
-        raise NotImplementedError
-
+    @abstractmethod
     def insert(
         self,
         documents: list[str],
@@ -38,8 +31,9 @@ class VectorStore:
             metadatas: Optional list of metadata dicts per document
             ids: Optional list of unique IDs for documents
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def query(self, query_text: str, n_results: int = 3) -> list[str]:
         """Query the vector store for relevant documents.
 
@@ -50,15 +44,17 @@ class VectorStore:
         Returns:
             List of matching document texts
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def clear(self) -> None:
         """Remove all data from the store."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def count(self) -> int:
         """Return the number of documents in the store."""
-        raise NotImplementedError
+        ...
 
 
 class ChromaVectorStore(VectorStore):
@@ -80,31 +76,19 @@ class ChromaVectorStore(VectorStore):
             embedding_model: SentenceTransformer instance (if None, uses default)
             collection_name: Name of the Chroma collection
         """
-        import chromadb
-        from sentence_transformers import SentenceTransformer
-
         self.db_path = str(db_path)
         self.collection_name = collection_name
 
-        # Use provided embedding model or create default
-        if embedding_model is not None:
-            self.embedding_model = embedding_model
-        else:
-            self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.embedding_model = embedding_model or SentenceTransformer("all-MiniLM-L6-v2")
 
-        # Initialize Chroma client (persistent)
         self.client = chromadb.PersistentClient(path=self.db_path)
 
-        # Get or create collection with embedding function
-        # We need to provide a Chroma embedding function that wraps our model
         class SentenceTransformerEmbeddingFunction(chromadb.EmbeddingFunction):
             def __init__(self, model):
                 self.model = model
 
             def __call__(self, input: list[str]) -> list[list[float]]:
-                # Chroma expects a list of embeddings, each is a list of floats
-                embeddings = self.model.encode(input)
-                return embeddings.tolist()
+                return self.model.encode(input).tolist()
 
         self.embedding_fn = SentenceTransformerEmbeddingFunction(self.embedding_model)
 
@@ -123,23 +107,17 @@ class ChromaVectorStore(VectorStore):
 
         Args:
             documents: List of document texts (chunks)
-            metadatas: Optional list of metadata dicts per document. If None,
-                      Chroma will store documents without metadata.
-            ids: Optional list of unique IDs for documents. If None, UUIDs are generated.
+            metadatas: Optional list of metadata dicts per document
+            ids: Optional list of unique IDs for documents
         """
-        import uuid
-
-        # Generate IDs if not provided
         if ids is None:
             ids = [str(uuid.uuid4()) for _ in documents]
         elif len(ids) != len(documents):
             raise ValueError("ids length must match documents length")
 
-        # Validate metadatas if provided, else pass None to Chroma
         if metadatas is not None:
             if len(metadatas) != len(documents):
                 raise ValueError("metadatas length must match documents length")
-            # Ensure all metadatas are non-empty dicts (Chroma requirement)
             for m in metadatas:
                 if not m:
                     raise ValueError("metadata dicts must be non-empty")
@@ -152,11 +130,13 @@ class ChromaVectorStore(VectorStore):
 
     def query(self, query_text: str, n_results: int = 3) -> list[str]:
         """Query Chroma for similar documents."""
+        n_results = min(n_results, self.count())
+        if n_results == 0:
+            return []
         results = self.collection.query(
             query_texts=[query_text],
             n_results=n_results,
         )
-        # Results structure: {"documents": [[...]]}
         return results["documents"][0] if results["documents"] else []
 
     def clear(self) -> None:
@@ -164,7 +144,7 @@ class ChromaVectorStore(VectorStore):
         try:
             self.client.delete_collection(name=self.collection_name)
         except Exception:
-            pass  # Collection may not exist
+            pass
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name,
             embedding_function=self.embedding_fn,
