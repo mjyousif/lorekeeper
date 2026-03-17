@@ -5,9 +5,9 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 
-from rag_wrapper.wrapper import RAGWrapper
-from rag_wrapper.vector_store import VectorStore
-from rag_wrapper.config import Config
+from src.wrapper import RAGWrapper
+from src.vector_store import VectorStore
+from src.config import Config
 
 
 def make_config(**kwargs) -> Config:
@@ -84,7 +84,7 @@ class TestRAGWrapperInitialization:
         assert wrapper.vector_store is mock_store
 
     def test_init_loads_and_embeds_files(self, tmp_path):
-        (tmp_path / "doc.txt").write_text(" teaches .")
+        (tmp_path / "doc.txt").write_text("The water cycle involves evaporation and precipitation.")
         cfg = make_config(db_path=str(tmp_path / "db"))
         wrapper = RAGWrapper(config=cfg, files=str(tmp_path))
 
@@ -246,18 +246,20 @@ class TestRAGWrapperVectorStoreIntegration:
     def wrapper(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / ".txt").write_text(
-            " teaches ."
+        (data_dir / "philosophy.txt").write_text(
+            "Stoicism teaches self-control, resilience, and rational thinking."
         )
-        (data_dir / ".txt").write_text(" is the evil religion of .")
+        (data_dir / "ethics.txt").write_text(
+            "Utilitarianism holds that the best action maximizes overall well-being."
+        )
 
         cfg = make_config(db_path=str(tmp_path / "db"))
         return RAGWrapper(config=cfg, files=str(data_dir))
 
     def test_get_relevant_context_returns_matches(self, wrapper):
-        results = wrapper.get_relevant_context("What does  teach?", n_results=2)
+        results = wrapper.get_relevant_context("What does Stoicism teach?", n_results=2)
         assert len(results) > 0
-        assert any("" in doc for doc in results)
+        assert any("Stoicism" in doc for doc in results)
 
     def test_get_relevant_context_empty_query(self, wrapper):
         results = wrapper.get_relevant_context("", n_results=2)
@@ -266,7 +268,7 @@ class TestRAGWrapperVectorStoreIntegration:
     def test_vector_store_black_box(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "doc.txt").write_text("Test content for .")
+        (data_dir / "doc.txt").write_text("Test content for search.")
 
         class CustomStore(VectorStore):
             def __init__(self):
@@ -298,8 +300,8 @@ class TestRAGWrapperChat:
     def wrapper(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "lore.txt").write_text(
-            "  a. ."
+        (data_dir / "science.txt").write_text(
+            "Photosynthesis is the process by which plants convert sunlight into energy."
         )
 
         cfg = make_config(
@@ -309,7 +311,7 @@ class TestRAGWrapperChat:
         return RAGWrapper(config=cfg, files=str(data_dir))
 
     def test_chat_creates_new_session_if_not_exists(self, wrapper):
-        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Test response"
             mock_completion.return_value.choices = [mock_choice]
@@ -320,24 +322,24 @@ class TestRAGWrapperChat:
         assert response["message"] == "Test response"
 
     def test_chat_retrieves_context(self, wrapper):
-        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Response"
             mock_completion.return_value.choices = [mock_choice]
 
-            wrapper.chat(session_id="test", message="What is ?")
+            wrapper.chat(session_id="test", message="What is photosynthesis?")
 
             messages = mock_completion.call_args[1]["messages"]
             system_msg = messages[0]
             assert system_msg["role"] == "system"
             assert "Context:" in system_msg["content"]
-            assert "" in system_msg["content"]
+            assert "Photosynthesis" in system_msg["content"] or "photosynthesis" in system_msg["content"]
 
     def test_chat_uses_relevant_context_for_query(self, wrapper):
         with patch.object(wrapper, "get_relevant_context") as mock_get:
             mock_get.return_value = ["Mocked context"]
 
-            with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
+            with patch("src.wrapper.litellm.completion") as mock_completion:
                 mock_choice = MagicMock()
                 mock_choice.message.content = "Reply"
                 mock_completion.return_value.choices = [mock_choice]
@@ -348,7 +350,7 @@ class TestRAGWrapperChat:
     def test_chat_manages_conversation_history(self, wrapper):
         session_id = "history_test"
 
-        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply 1"
             mock_completion.return_value.choices = [mock_choice]
@@ -363,7 +365,7 @@ class TestRAGWrapperChat:
             assert len(messages) == 4  # system + 2 history + current user
 
     def test_chat_handles_llm_error(self, wrapper):
-        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_completion.side_effect = Exception("API error")
             response = wrapper.chat(session_id="test", message="Hello")
             assert "Error calling LLM" in response["message"]
@@ -383,7 +385,7 @@ class TestRAGWrapperChat:
     def test_chat_rebuilds_on_file_change(self, wrapper, tmp_path):
         data_dir = tmp_path / "data"
 
-        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply"
             mock_completion.return_value.choices = [mock_choice]
@@ -394,7 +396,7 @@ class TestRAGWrapperChat:
         (data_dir / "new.txt").write_text("New content")
         wrapper._manifest = {}
 
-        with patch("rag_wrapper.wrapper.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply"
             mock_completion.return_value.choices = [mock_choice]
@@ -416,10 +418,10 @@ class TestRAGWrapperEndToEnd:
     def test_full_rag_pipeline(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "_lore.txt").write_text("""
-         is the one true faith.
-        Its principles are .
-        .
+        (data_dir / "science_facts.txt").write_text("""
+        Photosynthesis is the process plants use to convert sunlight into energy.
+        Its key inputs are carbon dioxide, water, and light.
+        Chlorophyll is the primary pigment responsible for absorbing light.
         """)
 
         cfg = make_config(
@@ -429,6 +431,6 @@ class TestRAGWrapperEndToEnd:
         wrapper = RAGWrapper(config=cfg, files=str(data_dir))
 
         assert wrapper.vector_store.count() > 0
-        context = wrapper.get_relevant_context("What are 's principles?")
+        context = wrapper.get_relevant_context("What are the inputs to photosynthesis?")
         assert len(context) > 0
-        assert any(" c" in doc or " d" in doc for doc in context)
+        assert any("carbon dioxide" in doc.lower() or "sunlight" in doc.lower() for doc in context)

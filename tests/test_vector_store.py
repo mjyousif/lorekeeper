@@ -5,7 +5,7 @@ import os
 import pytest
 from pathlib import Path
 
-from rag_wrapper.vector_store import VectorStore, ChromaVectorStore
+from src.vector_store import VectorStore, ChromaVectorStore
 
 
 class TestVectorStoreInterface:
@@ -77,8 +77,8 @@ class TestChromaVectorStore:
         docs = [
             "The sky is blue and the sun shines brightly.",
             "Grass is green and grows in fields.",
-            " teaches .",
-            "  b .",
+            "Mountains are tall and covered in snow.",
+            "Rivers flow through valleys and into the sea.",
         ]
         vector_store.insert(documents=docs)
         results = vector_store.query("sky color", n_results=2)
@@ -116,12 +116,12 @@ class TestChromaVectorStore:
 
     def test_metadata_preserved_on_insert(self, vector_store):
         vector_store.insert(
-            documents=[" promotes  c and  d."],
-            metadatas=[{"source": "_lore.txt", "chapter": "1"}],
+            documents=["The ocean is deep and full of marine life."],
+            metadatas=[{"source": "nature_facts.txt", "chapter": "1"}],
         )
-        results = vector_store.query("", n_results=1)
+        results = vector_store.query("ocean", n_results=1)
         assert len(results) == 1
-        assert "" in results[0]
+        assert "ocean" in results[0].lower()
 
     def test_multiple_inserts_accumulate(self, vector_store):
         vector_store.insert(documents=["first batch"])

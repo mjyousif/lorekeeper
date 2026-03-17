@@ -13,8 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import gradio as gr
-from rag_wrapper.wrapper import RAGWrapper
-from rag_wrapper.config import get_config
+from src.wrapper import RAGWrapper
+from src.config import get_config
 
 cfg = get_config()  # Single load, cached, falls back to defaults if no config.yaml
 
