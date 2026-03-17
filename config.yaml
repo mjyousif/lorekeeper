@@ -1,0 +1,37 @@
+# RAGWrapper Configuration
+# This file centralizes settings for both Gradio UI and API
+
+# Data source: directory or list of files/directories to index
+files: "data"
+
+# Vector database path (shared between all interfaces)
+db_path: ".db"
+
+# Text chunking parameters
+chunk_size: 1000
+overlap: 200
+chunk_threshold: 10000
+
+# Logging level (DEBUG, INFO, WARNING, ERROR)
+log_level: "INFO"
+
+# Optional: path to primary context file (global instructions/preface)
+context_file: ${CONTEXT_FILE_PATH}
+
+# Optional: path to character file (persona/system prompt additions)
+character_file: ${CHARACTER_FILE_PATH}
+
+# LLM configuration - only API key is sensitive
+llm:
+  model: ${LLM_MODEL}
+  api_key: ${LLM_API_KEY}
+  api_base: ${LLM_API_BASE}"
+
+# Telegram bot configuration
+telegram:
+  bot_token: ${TELEGRAM_BOT_TOKEN}
+  endpoint: "http://127.0.0.1:8000/v1/chat/completions"
+
+# Authorization - list of allowed Telegram user IDs and chat IDs
+allowed_user_ids: [69469318]
+allowed_chat_ids: []
