@@ -16,7 +16,16 @@ import subprocess
 import time
 import signal
 import json
+import logging
+import requests
 from pathlib import Path
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Configuration
 ROOT = Path(__file__).parent
@@ -32,18 +41,24 @@ SERVICES = {
         "pid": PID_DIR / "api.pid",
         "log": LOG_DIR / "api.log",
         "daemon": True,
+        "depends_on": [],  # No dependencies
+        "ready_url": "http://127.0.0.1:8000/",  # Health check endpoint
     },
     "telegram": {
         "cmd": ["uv", "run", "python", "telegram_bot.py"],
         "pid": PID_DIR / "telegram.pid",
         "log": LOG_DIR / "telegram.log",
         "daemon": True,
+        "depends_on": ["api"],  # Wait for API to be ready
+        "ready_url": None,  # No health check for telegram
     },
     "ui": {
         "cmd": ["uv", "run", "python", "gradio_app.py"],
         "pid": PID_DIR / "ui.pid",
         "log": LOG_DIR / "ui.log",
         "daemon": True,
+        "depends_on": ["api"],  # Wait for API to be ready
+        "ready_url": None,  # No health check for UI
     },
 }
 
@@ -68,10 +83,43 @@ def is_running(service: str) -> bool:
         return False
 
 
+def wait_for_service(service: str, timeout: int = 60) -> bool:
+    """Wait for a service's health check endpoint to be ready."""
+    url = SERVICES[service].get("ready_url")
+    if not url:
+        logger.debug(f"Service {service} has no health check URL, assuming ready if running")
+        return True  # No health check defined, assume ready if running
+    
+    logger.info(f"Waiting for service {service} to become ready (timeout: {timeout}s)...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            resp = requests.get(url, timeout=2)
+            if resp.status_code == 200:
+                logger.info(f"Service {service} is ready (health check passed)")
+                return True
+        except requests.RequestException as e:
+            logger.debug(f"Health check failed for {service}: {e}")
+        time.sleep(1)
+    
+    logger.error(f"Service {service} failed to become ready within {timeout}s")
+    return False
+
+
 def start_service(service: str):
     if is_running(service):
-        print(f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})")
+        logger.info(f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})")
         return
+
+    # Check dependencies first
+    for dep in SERVICES[service].get("depends_on", []):
+        if not is_running(dep):
+            logger.info(f"[{service}] Dependency '{dep}' is not running. Starting it first...")
+            start_service(dep)
+        # Wait for dependency to be ready
+        if not wait_for_service(dep):
+            logger.error(f"[{service}] Dependency '{dep}' failed to start. Aborting.")
+            return
 
     # Load environment from .env if present
     env = os.environ.copy()
@@ -86,7 +134,7 @@ def start_service(service: str):
     log_path = SERVICES[service]["log"]
     pid_path = SERVICES[service]["pid"]
 
-    print(f"[{service}] Starting {' '.join(cmd)}")
+    logger.info(f"[{service}] Starting {' '.join(cmd)}")
     with open(log_path, "a") as log_file:
         process = subprocess.Popen(
             cmd,
@@ -99,22 +147,25 @@ def start_service(service: str):
     pid_path.write_text(str(process.pid))
     time.sleep(0.5)
     if is_running(service):
-        print(f"[{service}] Started with PID {process.pid}")
+        logger.info(f"[{service}] Started with PID {process.pid}")
+        # Wait for this service to be ready if it has a health check
+        if not wait_for_service(service):
+            logger.error(f"[{service}] Service started but failed health check. Check logs: {log_path}")
     else:
-        print(f"[{service}] Failed to start (check logs: {log_path})")
+        logger.error(f"[{service}] Failed to start (check logs: {log_path})")
 
 
 def stop_service(service: str):
     pid = read_pid(SERVICES[service]["pid"])
     if pid is None:
-        print(f"[{service}] Not running (no PID file)")
+        logger.info(f"[{service}] Not running (no PID file)")
         return
     try:
         os.kill(pid, signal.SIGTERM)
-        print(f"[{service}] Stopped (PID {pid})")
+        logger.info(f"[{service}] Stopped (PID {pid})")
         SERVICES[service]["pid"].unlink(missing_ok=True)
     except OSError:
-        print(f"[{service}] Process {pid} not found; removing stale PID file")
+        logger.warning(f"[{service}] Process {pid} not found; removing stale PID file")
         SERVICES[service]["pid"].unlink(missing_ok=True)
 
 
@@ -135,7 +186,7 @@ def tail_log(log_path: Path, follow: bool = True):
     except KeyboardInterrupt:
         pass
     except FileNotFoundError:
-        print(f"Log file not found: {log_path}")
+        logger.error(f"Log file not found: {log_path}")
 
 
 def main(argv: list[str] | None = None):
@@ -159,7 +210,8 @@ def main(argv: list[str] | None = None):
             services = list(SERVICES.keys())
         for s in services:
             if s not in SERVICES:
-                print(f"Unknown service: {s}")
+                logger.error(f"Unknown service: {s}")
+                print(__doc__)
                 return 1
             start_service(s)
 
@@ -169,7 +221,8 @@ def main(argv: list[str] | None = None):
             services = list(SERVICES.keys())
         for s in services:
             if s not in SERVICES:
-                print(f"Unknown service: {s}")
+                logger.error(f"Unknown service: {s}")
+                print(__doc__)
                 return 1
             stop_service(s)
 
@@ -179,7 +232,8 @@ def main(argv: list[str] | None = None):
         # Simple: if no services, default to both
         for s in services:
             if s not in SERVICES:
-                print(f"Unknown service: {s}")
+                logger.error(f"Unknown service: {s}")
+                print(__doc__)
                 return 1
         # If only one service, you can optionally add -f or -n flags
         # Here we always follow
@@ -191,15 +245,15 @@ def main(argv: list[str] | None = None):
             pass
 
     elif command == "status":
-        print("Service Status:")
+        logger.info("Service Status:")
         for s in SERVICES:
             running = is_running(s)
             status = "RUNNING" if running else "STOPPED"
             pid = read_pid(SERVICES[s]["pid"])
-            print(f"  {s:10} {status:10} PID: {pid if pid else '-'}")
+            logger.info(f"  {s:10} {status:10} PID: {pid if pid else '-'}")
 
     else:
-        print(f"Unknown command: {command}")
+        logger.error(f"Unknown command: {command}")
         print(__doc__)
         return 1
 
