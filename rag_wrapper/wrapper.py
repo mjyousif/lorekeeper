@@ -67,7 +67,9 @@ class RAGWrapper:
                     self.context = f.read().strip()
                 logger.info("Loaded context from %s", self.config.context_file)
             except Exception as e:
-                logger.error("Failed to read context file %s: %s", self.config.context_file, e)
+                logger.error(
+                    "Failed to read context file %s: %s", self.config.context_file, e
+                )
 
         self.character = ""
         if self.config.character_file:
@@ -76,7 +78,11 @@ class RAGWrapper:
                     self.character = f.read().strip()
                 logger.info("Loaded character from %s", self.config.character_file)
             except Exception as e:
-                logger.error("Failed to read character file %s: %s", self.config.character_file, e)
+                logger.error(
+                    "Failed to read character file %s: %s",
+                    self.config.character_file,
+                    e,
+                )
 
     def _resolve_files(self, input_paths: list[str] | str) -> list[str]:
         """Return a flat list of readable files.
@@ -183,7 +189,9 @@ class RAGWrapper:
             with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
 
-    def _chunk_text(self, text: str, chunk_size: int = 1000, overlap: int = 200) -> list[str]:
+    def _chunk_text(
+        self, text: str, chunk_size: int = 1000, overlap: int = 200
+    ) -> list[str]:
         """Split text into overlapping chunks."""
         if not text:
             return []
@@ -210,7 +218,9 @@ class RAGWrapper:
 
         # 1. Retrieve relevant context
         context = self.get_relevant_context(message)
-        context_str = "\n---\n".join(context) if context else "No relevant context found."
+        context_str = (
+            "\n---\n".join(context) if context else "No relevant context found."
+        )
         logger.debug("Retrieved %d context chunks", len(context))
 
         # 2. Manage conversation history

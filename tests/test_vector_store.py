@@ -24,10 +24,17 @@ class TestVectorStoreInterface:
         """Subclass implementing all abstract methods should instantiate fine."""
 
         class CompleteStore(VectorStore):
-            def insert(self, documents, metadatas=None, ids=None): pass
-            def query(self, query_text, n_results=3): return []
-            def clear(self): pass
-            def count(self): return 0
+            def insert(self, documents, metadatas=None, ids=None):
+                pass
+
+            def query(self, query_text, n_results=3):
+                return []
+
+            def clear(self):
+                pass
+
+            def count(self):
+                return 0
 
         store = CompleteStore()
         assert store.count() == 0

@@ -69,6 +69,7 @@ def is_authorized(update: Update) -> bool:
 
 # --- SQLite session history ---
 
+
 def init_db():
     try:
         with sqlite3.connect(DB_PATH) as con:
@@ -86,7 +87,9 @@ def init_db():
 def get_history(chat_id: int) -> list[dict]:
     try:
         with sqlite3.connect(DB_PATH) as con:
-            cur = con.execute("SELECT messages FROM history WHERE chat_id=?", (chat_id,))
+            cur = con.execute(
+                "SELECT messages FROM history WHERE chat_id=?", (chat_id,)
+            )
             row = cur.fetchone()
             return json.loads(row[0]) if row else []
     except Exception as e:
@@ -109,6 +112,7 @@ init_db()
 
 
 # --- Handlers ---
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):

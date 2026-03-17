@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # --- Pydantic Models for OpenAI Compatibility ---
 
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -65,6 +66,7 @@ def get_rag_wrapper() -> RAGWrapper:
     wrapper = RAGWrapper(config)
     logger.info("RAG Wrapper initialization complete.")
     return wrapper
+
 
 RAGDep = Annotated[RAGWrapper, Depends(get_rag_wrapper)]
 
@@ -114,4 +116,6 @@ async def chat_completions(
 @app.get("/")
 def read_root():
     logger.info("Health check endpoint called")
-    return {"message": "RAG Wrapper API is running. POST to /v1/chat/completions to interact."}
+    return {
+        "message": "RAG Wrapper API is running. POST to /v1/chat/completions to interact."
+    }

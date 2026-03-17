@@ -71,13 +71,19 @@ class Config(BaseSettings):
 def _expand_env_vars(data: Any) -> Any:
     """Recursively expand ${VAR} and ${VAR:default} in strings."""
     if isinstance(data, str):
+
         def replace_var(match):
             var_expr = match.group(1)
             if ":" in var_expr:
                 var_name, default = var_expr.split(":", 1)
             else:
                 var_name, default = var_expr, None
-            return os.getenv(var_name, default) if default is not None else os.getenv(var_name, "")
+            return (
+                os.getenv(var_name, default)
+                if default is not None
+                else os.getenv(var_name, "")
+            )
+
         return re.sub(r"\$\{([^}]+)\}", replace_var, data)
     elif isinstance(data, dict):
         return {k: _expand_env_vars(v) for k, v in data.items()}

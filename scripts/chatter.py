@@ -38,7 +38,16 @@ LOG_DIR.mkdir(exist_ok=True)
 # Service definitions
 SERVICES = {
     "api": {
-        "cmd": ["uv", "run", "uvicorn", "rag_wrapper.api:app", "--host", "127.0.0.1", "--port", "8000"],
+        "cmd": [
+            "uv",
+            "run",
+            "uvicorn",
+            "rag_wrapper.api:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8000",
+        ],
         "pid": PID_DIR / "api.pid",
         "log": LOG_DIR / "api.log",
         "daemon": True,
@@ -88,10 +97,14 @@ def wait_for_service(service: str, timeout: int = 60) -> bool:
     """Wait for a service's health check endpoint to be ready."""
     url = SERVICES[service].get("ready_url")
     if not url:
-        logger.debug(f"Service {service} has no health check URL, assuming ready if running")
+        logger.debug(
+            f"Service {service} has no health check URL, assuming ready if running"
+        )
         return True  # No health check defined, assume ready if running
-    
-    logger.info(f"Waiting for service {service} to become ready (timeout: {timeout}s)...")
+
+    logger.info(
+        f"Waiting for service {service} to become ready (timeout: {timeout}s)..."
+    )
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
@@ -102,7 +115,7 @@ def wait_for_service(service: str, timeout: int = 60) -> bool:
         except requests.RequestException as e:
             logger.debug(f"Health check failed for {service}: {e}")
         time.sleep(1)
-    
+
     logger.error(f"Service {service} failed to become ready within {timeout}s")
     return False
 
@@ -128,16 +141,22 @@ def purge_logs():
 def start_service(service: str, restart: bool = False):
     if is_running(service):
         if restart:
-            logger.info(f"[{service}] Already running, stopping first (restart mode)...")
+            logger.info(
+                f"[{service}] Already running, stopping first (restart mode)..."
+            )
             stop_service(service)
         else:
-            logger.info(f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})")
+            logger.info(
+                f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})"
+            )
             return
 
     # Check dependencies first
     for dep in SERVICES[service].get("depends_on", []):
         if not is_running(dep):
-            logger.info(f"[{service}] Dependency '{dep}' is not running. Starting it first...")
+            logger.info(
+                f"[{service}] Dependency '{dep}' is not running. Starting it first..."
+            )
             start_service(dep, restart=restart)
         # Wait for dependency to be ready
         if not wait_for_service(dep):
@@ -173,7 +192,9 @@ def start_service(service: str, restart: bool = False):
         logger.info(f"[{service}] Started with PID {process.pid}")
         # Wait for this service to be ready if it has a health check
         if not wait_for_service(service):
-            logger.error(f"[{service}] Service started but failed health check. Check logs: {log_path}")
+            logger.error(
+                f"[{service}] Service started but failed health check. Check logs: {log_path}"
+            )
     else:
         logger.error(f"[{service}] Failed to start (check logs: {log_path})")
 
@@ -233,19 +254,19 @@ def main(argv: list[str] | None = None):
 
     if command == "start":
         services = args if args else ["all"]
-        
+
         # Check for --restart flag in original args
         restart = "--restart" in services
         if restart:
             services.remove("--restart")
-        
+
         # Expand "all" to list of services
         if "all" in services:
             services = list(SERVICES.keys())
-        
+
         # Purge logs before starting
         purge_logs()
-        
+
         for s in services:
             if s not in SERVICES:
                 logger.error(f"Unknown service: {s}")

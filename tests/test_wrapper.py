@@ -246,7 +246,9 @@ class TestRAGWrapperVectorStoreIntegration:
     def wrapper(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / ".txt").write_text(" teaches .")
+        (data_dir / ".txt").write_text(
+            " teaches ."
+        )
         (data_dir / ".txt").write_text(" is the evil religion of .")
 
         cfg = make_config(db_path=str(tmp_path / "db"))
@@ -267,11 +269,20 @@ class TestRAGWrapperVectorStoreIntegration:
         (data_dir / "doc.txt").write_text("Test content for .")
 
         class CustomStore(VectorStore):
-            def __init__(self): self._docs = []
-            def insert(self, documents, metadatas=None, ids=None): self._docs.extend(documents)
-            def query(self, query_text, n_results=3): return self._docs[:n_results]
-            def clear(self): self._docs.clear()
-            def count(self): return len(self._docs)
+            def __init__(self):
+                self._docs = []
+
+            def insert(self, documents, metadatas=None, ids=None):
+                self._docs.extend(documents)
+
+            def query(self, query_text, n_results=3):
+                return self._docs[:n_results]
+
+            def clear(self):
+                self._docs.clear()
+
+            def count(self):
+                return len(self._docs)
 
         custom_store = CustomStore()
         cfg = make_config(db_path=str(tmp_path / "db"))
@@ -287,7 +298,9 @@ class TestRAGWrapperChat:
     def wrapper(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "lore.txt").write_text("  a. .")
+        (data_dir / "lore.txt").write_text(
+            "  a. ."
+        )
 
         cfg = make_config(
             db_path=str(tmp_path / "db"),

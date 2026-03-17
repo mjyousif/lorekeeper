@@ -40,7 +40,9 @@ def rag_query(
 
     context_chunks = wrapper.get_relevant_context(query, n_results=n_results)
     context_str = (
-        "\n---\n".join(context_chunks) if context_chunks else "No relevant context found."
+        "\n---\n".join(context_chunks)
+        if context_chunks
+        else "No relevant context found."
     )
 
     response = wrapper.chat(session_id=session_id, message=query)

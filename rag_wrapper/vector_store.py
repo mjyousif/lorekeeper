@@ -79,7 +79,9 @@ class ChromaVectorStore(VectorStore):
         self.db_path = str(db_path)
         self.collection_name = collection_name
 
-        self.embedding_model = embedding_model or SentenceTransformer("all-MiniLM-L6-v2")
+        self.embedding_model = embedding_model or SentenceTransformer(
+            "all-MiniLM-L6-v2"
+        )
 
         self.client = chromadb.PersistentClient(path=self.db_path)
 
