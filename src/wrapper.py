@@ -50,6 +50,7 @@ class RAGWrapper:
         self.llm_model = llm_cfg.get("model")
         self.llm_api_key = llm_cfg.get("api_key")
         self.llm_api_base = llm_cfg.get("api_base")
+        self.max_context_size = int(llm_cfg.get("max_context_size", 64000))
 
         # Context and character
         self._load_context_character()
@@ -238,6 +239,20 @@ class RAGWrapper:
                 f"Context:\n{context_str}\n\n---\n\nKey Context:\n{self.context}\n\n---\n\nCharacter:\n{self.character}"
             ),
         }
+
+        # 3.5 Enforce max context size
+        # We loop until the token count of the combined messages is under the limit, or history runs out.
+        try:
+            while len(history) > 0:
+                messages = [system_msg] + history + [{"role": "user", "content": message}]
+                current_tokens = litellm.token_counter(model=self.llm_model, messages=messages)
+                if current_tokens <= self.max_context_size:
+                    break
+                # If too large, remove the oldest message in history
+                history.pop(0)
+        except Exception as e:
+            logger.warning("Failed to count tokens or truncate history: %s", e)
+
         messages = [system_msg] + history + [{"role": "user", "content": message}]
 
         # 4. Call LLM
@@ -257,9 +272,18 @@ class RAGWrapper:
                 logger.info("LLM call successful")
             except Exception as e:
                 logger.exception("Error calling LLM")
-                assistant_message = f"Error calling LLM: {e}"
+                
+                # Truncate the error message to avoid polluting output with massive HTML pages
+                # (e.g., if OpenRouter returns a 404 error page)
+                error_str = str(e)
+                if len(error_str) > 1000:
+                    error_str = error_str[:1000] + "... [truncated]"
+                assistant_message = f"Error calling LLM: {error_str}"
+                
+                # Return early so we don't save the error in the chat history database
+                return {"message": assistant_message, "context": context}
 
-        # 5. Update history
+        # 5. Update history (only reached on a successful LLM call)
         history.append({"role": "user", "content": message})
         history.append({"role": "assistant", "content": assistant_message})
 

@@ -25,7 +25,8 @@ character_file: ${CHARACTER_FILE_PATH}
 llm:
   model: ${LLM_MODEL}
   api_key: ${LLM_API_KEY}
-  api_base: ${LLM_API_BASE}"
+  api_base: ${LLM_API_BASE}
+  max_context_size: 64000
 
 # Telegram bot configuration
 telegram:
