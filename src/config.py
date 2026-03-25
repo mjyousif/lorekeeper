@@ -38,10 +38,23 @@ class Config(BaseSettings):
     log_level: str = "INFO"
     context_file: str | None = None
     character_file: str | None = None
-    allowed_user_ids: list[int] | None = None
-    allowed_chat_ids: list[int] | None = None
+    allowed_user_ids: list[int] | str | None = None
+    allowed_chat_ids: list[int] | str | None = None
 
     model_config = SettingsConfigDict(env_ignore_empty=True, extra="ignore")
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if isinstance(self.allowed_user_ids, str):
+            if self.allowed_user_ids.strip():
+                self.allowed_user_ids = [int(x.strip()) for x in self.allowed_user_ids.split(",") if x.strip()]
+            else:
+                self.allowed_user_ids = None
+        if isinstance(self.allowed_chat_ids, str):
+            if self.allowed_chat_ids.strip():
+                self.allowed_chat_ids = [int(x.strip()) for x in self.allowed_chat_ids.split(",") if x.strip()]
+            else:
+                self.allowed_chat_ids = None
 
     @classmethod
     def from_file(cls, path: str | Path) -> "Config":
