@@ -1,1 +1,1 @@
-"""Tests package for rag-wrapper."""
+"""Tests package for lorekeeper."""

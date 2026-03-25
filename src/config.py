@@ -25,7 +25,7 @@ load_dotenv()
 
 
 class Config(BaseSettings):
-    """Typed RAGWrapper config with validation."""
+    """Typed LoreKeeper config with validation."""
 
     files: str | list[str] = "data"
     db_path: str = "db"

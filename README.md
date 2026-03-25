@@ -1,4 +1,4 @@
-# LLM RAG Wrapper
+# LLM LoreKeeper
 
 This project is a wrapper around Large Language Model (LLM) calls that uses Retrieval-Augmented Generation (RAG) to provide context from a local set of files.
 
@@ -20,11 +20,11 @@ This project is a wrapper around Large Language Model (LLM) calls that uses Retr
 ## Usage Example
 
 ```python
-from rag_wrapper import RAGWrapper
+from src.wrapper import LoreKeeper
 
 # 1. Initialize the wrapper with your files
 file_paths = ["path/to/document1.txt", "path/to/document2.md"]
-wrapper = RAGWrapper(files=file_paths)
+wrapper = LoreKeeper(files=file_paths)
 
 # 2. Start a conversation (or continue one)
 session_id = "user123_session_abc"
@@ -85,7 +85,7 @@ pip install -r requirements.txt
 Once the dependencies are installed, start the API server with `uvicorn`.
 
 ```shell
-uvicorn rag_wrapper.api:app --reload
+uvicorn src.api:app --reload
 ```
 
 The server will be running at `http://127.0.0.1:8000`.

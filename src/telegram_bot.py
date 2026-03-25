@@ -10,7 +10,7 @@ from telegram.ext import (
     filters,
 )
 from src.config import get_config
-from src.wrapper import RAGWrapper
+from src.wrapper import LoreKeeper
 from src.session_storage import SessionStorage
 from telegramify_markdown import convert
 
@@ -42,10 +42,10 @@ if not TELEGRAM_BOT_TOKEN:
 
 
 @lru_cache()
-def get_wrapper() -> RAGWrapper:
-    logger.info("Initializing RAG Wrapper for Telegram bot...")
-    wrapper = RAGWrapper(config)
-    logger.info("RAG Wrapper initialization complete.")
+def get_wrapper() -> LoreKeeper:
+    logger.info("Initializing LoreKeeper for Telegram bot...")
+    wrapper = LoreKeeper(config)
+    logger.info("LoreKeeper initialization complete.")
     return wrapper
 
 
@@ -102,7 +102,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         assistant_msg = response["message"]
         logger.info("RAG response received for chat_id %d", chat_id)
     except Exception as e:
-        logger.exception("Error in RAG wrapper")
+        logger.exception("Error in LoreKeeper")
         assistant_msg = f"Error generating response: {e}"
 
     text, entities = convert(assistant_msg)

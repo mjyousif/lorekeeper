@@ -1,10 +1,10 @@
-"""Test the RAGWrapper class."""
+"""Test the LoreKeeper class."""
 
 import os
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.wrapper import RAGWrapper
+from src.wrapper import LoreKeeper
 from src.vector_store import VectorStore
 from src.config import Config
 
@@ -22,7 +22,7 @@ def make_config(**kwargs) -> Config:
     return Config(**defaults)
 
 
-class TestRAGWrapperInitialization:
+class TestLoreKeeperInitialization:
 
     def test_init_with_single_directory(self, tmp_path):
         data_dir = tmp_path / "data"
@@ -30,7 +30,7 @@ class TestRAGWrapperInitialization:
         (data_dir / "doc1.txt").write_text("Content 1")
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(data_dir))
+        wrapper = LoreKeeper(config=cfg, files=str(data_dir))
 
         assert wrapper.files == [str(data_dir / "doc1.txt")]
 
@@ -41,7 +41,7 @@ class TestRAGWrapperInitialization:
         file2.write_text("Content 2")
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=[str(file1), str(file2)])
+        wrapper = LoreKeeper(config=cfg, files=[str(file1), str(file2)])
 
         assert len(wrapper.files) == 2
 
@@ -53,21 +53,21 @@ class TestRAGWrapperInitialization:
         file1.write_text("File doc")
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=[str(data_dir), str(file1)])
+        wrapper = LoreKeeper(config=cfg, files=[str(data_dir), str(file1)])
 
         assert len(wrapper.files) == 2
 
     def test_init_creates_sessions_dict(self, tmp_path):
         (tmp_path / "doc.txt").write_text("Test content")
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(tmp_path))
+        wrapper = LoreKeeper(config=cfg, files=str(tmp_path))
 
         assert wrapper.sessions == {}
 
     def test_init_scans_files_and_updates_manifest(self, tmp_path):
         (tmp_path / "doc.txt").write_text("Test content")
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(tmp_path))
+        wrapper = LoreKeeper(config=cfg, files=str(tmp_path))
 
         assert len(wrapper._manifest) > 0
         assert str(tmp_path / "doc.txt") in wrapper._manifest
@@ -78,7 +78,7 @@ class TestRAGWrapperInitialization:
         mock_store.count.return_value = 0
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(tmp_path), vector_store=mock_store)
+        wrapper = LoreKeeper(config=cfg, files=str(tmp_path), vector_store=mock_store)
 
         assert wrapper.vector_store is mock_store
 
@@ -87,7 +87,7 @@ class TestRAGWrapperInitialization:
             "The water cycle involves evaporation and precipitation."
         )
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(tmp_path))
+        wrapper = LoreKeeper(config=cfg, files=str(tmp_path))
 
         assert wrapper.vector_store.count() > 0
 
@@ -96,16 +96,16 @@ class TestRAGWrapperInitialization:
         db_path = str(tmp_path / "db")
         cfg = make_config(db_path=db_path)
 
-        wrapper1 = RAGWrapper(config=cfg, files=str(tmp_path))
+        wrapper1 = LoreKeeper(config=cfg, files=str(tmp_path))
         assert wrapper1.vector_store.count() > 0
 
         (tmp_path / "doc.txt").write_text("Modified content")
 
-        wrapper2 = RAGWrapper(config=cfg, files=str(tmp_path))
+        wrapper2 = LoreKeeper(config=cfg, files=str(tmp_path))
         assert wrapper2.vector_store.count() > 0
 
 
-class TestRAGWrapperFileOperations:
+class TestLoreKeeperFileOperations:
 
     @pytest.fixture
     def wrapper(self, tmp_path):
@@ -114,13 +114,13 @@ class TestRAGWrapperFileOperations:
         (data_dir / "doc1.txt").write_text("Short content.")
         (data_dir / "doc2.txt").write_text("X" * 3000)
         cfg = make_config(db_path=str(tmp_path / "db"))
-        return RAGWrapper(config=cfg, files=str(data_dir))
+        return LoreKeeper(config=cfg, files=str(data_dir))
 
     def test_resolve_files_single_file(self, tmp_path):
         file_path = tmp_path / "test.txt"
         file_path.write_text("Content")
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(file_path))
+        wrapper = LoreKeeper(config=cfg, files=str(file_path))
 
         assert wrapper._resolve_files(str(file_path)) == [str(file_path)]
 
@@ -133,7 +133,7 @@ class TestRAGWrapperFileOperations:
         (subdir / "ignore.jpg").write_text("image")
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(data_dir))
+        wrapper = LoreKeeper(config=cfg, files=str(data_dir))
         resolved = wrapper._resolve_files(str(data_dir))
 
         assert len(resolved) == 2
@@ -151,7 +151,7 @@ class TestRAGWrapperFileOperations:
         (data_dir / "doc.json").write_text("json")
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(data_dir))
+        wrapper = LoreKeeper(config=cfg, files=str(data_dir))
         resolved = wrapper._resolve_files(str(data_dir))
 
         assert len(resolved) == 3
@@ -190,7 +190,7 @@ class TestRAGWrapperFileOperations:
             assert chunks[0][-100:] == chunks[1][:100]
 
 
-class TestRAGWrapperManifestAndRebuild:
+class TestLoreKeeperManifestAndRebuild:
 
     @pytest.fixture
     def wrapper_with_files(self, tmp_path):
@@ -202,7 +202,7 @@ class TestRAGWrapperManifestAndRebuild:
         file2.write_text("Content 2")
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(data_dir))
+        wrapper = LoreKeeper(config=cfg, files=str(data_dir))
         return wrapper, data_dir, file1, file2
 
     def test_scan_files_returns_mtime_and_size(self, wrapper_with_files):
@@ -241,7 +241,7 @@ class TestRAGWrapperManifestAndRebuild:
         assert wrapper.vector_store.count() > 0
 
 
-class TestRAGWrapperVectorStoreIntegration:
+class TestLoreKeeperVectorStoreIntegration:
 
     @pytest.fixture
     def wrapper(self, tmp_path):
@@ -255,7 +255,7 @@ class TestRAGWrapperVectorStoreIntegration:
         )
 
         cfg = make_config(db_path=str(tmp_path / "db"))
-        return RAGWrapper(config=cfg, files=str(data_dir))
+        return LoreKeeper(config=cfg, files=str(data_dir))
 
     def test_get_relevant_context_returns_matches(self, wrapper):
         results = wrapper.get_relevant_context("What does Stoicism teach?", n_results=2)
@@ -289,13 +289,13 @@ class TestRAGWrapperVectorStoreIntegration:
 
         custom_store = CustomStore()
         cfg = make_config(db_path=str(tmp_path / "db"))
-        wrapper = RAGWrapper(config=cfg, files=str(data_dir), vector_store=custom_store)
+        wrapper = LoreKeeper(config=cfg, files=str(data_dir), vector_store=custom_store)
 
         assert isinstance(wrapper.vector_store, CustomStore)
         assert wrapper.vector_store.count() > 0
 
 
-class TestRAGWrapperChat:
+class TestLoreKeeperChat:
 
     @pytest.fixture
     def wrapper(self, tmp_path):
@@ -309,7 +309,7 @@ class TestRAGWrapperChat:
             db_path=str(tmp_path / "db"),
             llm={"model": "test-model", "api_key": "test-key"},
         )
-        return RAGWrapper(config=cfg, files=str(data_dir))
+        return LoreKeeper(config=cfg, files=str(data_dir))
 
     def test_chat_creates_new_session_if_not_exists(self, wrapper):
         with patch("src.chat_manager.litellm.completion") as mock_completion:
@@ -381,7 +381,7 @@ class TestRAGWrapperChat:
         (data_dir / "doc.txt").write_text("Content")
 
         cfg = make_config(db_path=str(tmp_path / "db"), llm={})
-        wrapper = RAGWrapper(config=cfg, files=str(data_dir))
+        wrapper = LoreKeeper(config=cfg, files=str(data_dir))
 
         response = wrapper.chat(session_id="test", message="Hello")
         assert "LLM not configured" in response["message"]
@@ -410,14 +410,14 @@ class TestRAGWrapperChat:
         assert wrapper.vector_store.count() >= initial_count
 
 
-class TestRAGWrapperWithPdf:
+class TestLoreKeeperWithPdf:
 
     def test_read_pdf_file(self, tmp_path):
         pytest.skip("PDF test requires sample PDF file")
 
 
 @pytest.mark.integration
-class TestRAGWrapperEndToEnd:
+class TestLoreKeeperEndToEnd:
 
     def test_full_rag_pipeline(self, tmp_path):
         data_dir = tmp_path / "data"
@@ -432,7 +432,7 @@ class TestRAGWrapperEndToEnd:
             db_path=str(tmp_path / "db"),
             llm={"api_key": os.environ.get("OPENROUTER_API_KEY")},
         )
-        wrapper = RAGWrapper(config=cfg, files=str(data_dir))
+        wrapper = LoreKeeper(config=cfg, files=str(data_dir))
 
         assert wrapper.vector_store.count() > 0
         context = wrapper.get_relevant_context("What are the inputs to photosynthesis?")

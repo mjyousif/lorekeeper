@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Annotated, List, Optional
 
-from src.wrapper import RAGWrapper
+from src.wrapper import LoreKeeper
 from src.config import Config, get_config
 
 logging.basicConfig(
@@ -58,15 +58,15 @@ ConfigDep = Annotated[Config, Depends(get_config)]
 
 
 @lru_cache()
-def get_rag_wrapper() -> RAGWrapper:
+def get_lorekeeper() -> LoreKeeper:
     config = get_config()
-    logger.info("Initializing RAG Wrapper...")
-    wrapper = RAGWrapper(config)
-    logger.info("RAG Wrapper initialization complete.")
+    logger.info("Initializing LoreKeeper...")
+    wrapper = LoreKeeper(config)
+    logger.info("LoreKeeper initialization complete.")
     return wrapper
 
 
-RAGDep = Annotated[RAGWrapper, Depends(get_rag_wrapper)]
+RAGDep = Annotated[LoreKeeper, Depends(get_lorekeeper)]
 
 
 # --- FastAPI Application ---
@@ -91,7 +91,7 @@ async def chat_completions(
     try:
         wrapper_response = rag.chat(session_id=session_id, message=user_message)
     except Exception as e:
-        logger.exception("Error in RAG wrapper")
+        logger.exception("Error in LoreKeeper")
         raise HTTPException(status_code=500, detail=f"RAG error: {str(e)}") from e
 
     llm_message = wrapper_response.get("message", "No response from wrapper.")
@@ -115,5 +115,5 @@ async def chat_completions(
 def read_root():
     logger.info("Health check endpoint called")
     return {
-        "message": "RAG Wrapper API is running. POST to /v1/chat/completions to interact."
+        "message": "LoreKeeper API is running. POST to /v1/chat/completions to interact."
     }
