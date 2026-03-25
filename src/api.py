@@ -6,10 +6,8 @@ from functools import lru_cache
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Annotated, List, Optional
-import litellm
 
 from src.wrapper import RAGWrapper
-from src.vector_store import VectorStore
 from src.config import Config, get_config
 
 logging.basicConfig(
