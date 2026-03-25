@@ -107,3 +107,26 @@ curl -X "POST" "http://127.0.0.1:8000/v1/chat/completions" \
          ]
      }'
 ```
+
+## Running the Telegram Bot in Docker
+
+You can run the Telegram bot in a Docker container. Make sure you have created `.env` or set the necessary environment variables (like `TELEGRAM_BOT_TOKEN`, `LLM_API_KEY`, etc.) or configured them in `config.yaml`.
+
+### 1. Build the Docker Image
+
+```shell
+docker build -t rag-telegram-bot .
+```
+
+### 2. Run the Container
+
+```shell
+docker run -d --name my-telegram-bot \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config.yaml:/app/config.yaml \
+  -e TELEGRAM_BOT_TOKEN=your_token_here \
+  -e LLM_API_KEY=your_llm_api_key_here \
+  rag-telegram-bot
+```
+
+Make sure to mount any local directories needed for configuration or data storage.
