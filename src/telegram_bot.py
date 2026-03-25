@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sqlite3
 import logging
@@ -133,7 +134,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action("typing")
 
     wrapper = get_wrapper()
-    messages = get_history(chat_id)
+    messages = await asyncio.to_thread(get_history, chat_id)
 
     # Sync SQLite history into wrapper session so context is preserved on restart
     session_id = str(chat_id)
@@ -155,7 +156,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(updated_history) > 20:
         updated_history = updated_history[-20:]
         wrapper.sessions[session_id] = updated_history
-    set_history(chat_id, updated_history)
+    await asyncio.to_thread(set_history, chat_id, updated_history)
 
     if len(text) > 4096:
         text = text[:4046] + "...\n\n[Message truncated due to Telegram limit]"
