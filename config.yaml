@@ -1,4 +1,4 @@
-# RAGWrapper Configuration
+# LoreKeeper Configuration
 # This file centralizes settings for both Gradio UI and API
 
 # Data source: directory or list of files/directories to index

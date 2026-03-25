@@ -1,5 +1,5 @@
 [project]
-name = "rag-wrapper"
+name = "lorekeeper"
 version = "0.1.0"
 description = "RAG system with vector storage abstraction"
 requires-python = ">=3.11"

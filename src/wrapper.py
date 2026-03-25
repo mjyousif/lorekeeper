@@ -13,7 +13,7 @@ from .chat_manager import ChatManager
 logger = logging.getLogger(__name__)
 
 
-class RAGWrapper:
+class LoreKeeper:
     def __init__(
         self,
         config: Config,
@@ -199,7 +199,7 @@ class RAGWrapper:
 
 
 if __name__ == "__main__":
-    print("Starting RAG Wrapper example...")
+    print("Starting LoreKeeper example...")
 
     if not os.path.exists("test_docs"):
         os.makedirs("test_docs")
@@ -209,14 +209,14 @@ if __name__ == "__main__":
         f.write("The sky is blue and the grass is green. The sun is a star.")
 
     config = get_config()
-    rag_wrapper = RAGWrapper(config, files="test_docs")
+    lorekeeper = LoreKeeper(config, files="test_docs")
 
     session_id = "test_session_123"
 
     print("\n--- Query 1 ---")
-    response1 = rag_wrapper.chat(session_id, "What is the primary rule of the club?")
+    response1 = lorekeeper.chat(session_id, "What is the primary rule of the club?")
     print("\nWrapper Response:", response1)
 
     print("\n--- Query 2 ---")
-    response2 = rag_wrapper.chat(session_id, "What color is the sky?")
+    response2 = lorekeeper.chat(session_id, "What color is the sky?")
     print("\nWrapper Response:", response2)

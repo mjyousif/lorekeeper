@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gradio UI for manually testing the RAGWrapper.
+Gradio UI for manually testing the LoreKeeper.
 
 Run: python gradio_app.py
 Then open http://localhost:7860
@@ -13,16 +13,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import gradio as gr
-from src.wrapper import RAGWrapper
+from src.wrapper import LoreKeeper
 from src.config import get_config
 
 cfg = get_config()  # Single load, cached, falls back to defaults if no config.yaml
 
 
 @lru_cache()
-def get_wrapper() -> RAGWrapper:
-    """Get or create the RAGWrapper singleton."""
-    return RAGWrapper(get_config())
+def get_wrapper() -> LoreKeeper:
+    """Get or create the LoreKeeper singleton."""
+    return LoreKeeper(get_config())
 
 
 def rag_query(
@@ -78,8 +78,8 @@ def rebuild_index():
 
 
 # Build Gradio interface
-with gr.Blocks(title="RAG Wrapper UI", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# RAG Wrapper Testing UI")
+with gr.Blocks(title="LoreKeeper UI", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# LoreKeeper Testing UI")
     gr.Markdown(f"**Data directory:** `{cfg.files}` | **DB:** `{cfg.db_path}`")
 
     with gr.Row():
