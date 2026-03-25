@@ -1,5 +1,6 @@
 """Test the RAGWrapper class."""
 
+import tempfile
 import os
 import pytest
 from unittest.mock import MagicMock, patch
@@ -83,9 +84,7 @@ class TestRAGWrapperInitialization:
         assert wrapper.vector_store is mock_store
 
     def test_init_loads_and_embeds_files(self, tmp_path):
-        (tmp_path / "doc.txt").write_text(
-            "The water cycle involves evaporation and precipitation."
-        )
+        (tmp_path / "doc.txt").write_text("The water cycle involves evaporation and precipitation.")
         cfg = make_config(db_path=str(tmp_path / "db"))
         wrapper = RAGWrapper(config=cfg, files=str(tmp_path))
 
@@ -312,7 +311,7 @@ class TestRAGWrapperChat:
         return RAGWrapper(config=cfg, files=str(data_dir))
 
     def test_chat_creates_new_session_if_not_exists(self, wrapper):
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Test response"
             mock_completion.return_value.choices = [mock_choice]
@@ -323,7 +322,7 @@ class TestRAGWrapperChat:
         assert response["message"] == "Test response"
 
     def test_chat_retrieves_context(self, wrapper):
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Response"
             mock_completion.return_value.choices = [mock_choice]
@@ -334,16 +333,13 @@ class TestRAGWrapperChat:
             system_msg = messages[0]
             assert system_msg["role"] == "system"
             assert "Context:" in system_msg["content"]
-            assert (
-                "Photosynthesis" in system_msg["content"]
-                or "photosynthesis" in system_msg["content"]
-            )
+            assert "Photosynthesis" in system_msg["content"] or "photosynthesis" in system_msg["content"]
 
     def test_chat_uses_relevant_context_for_query(self, wrapper):
         with patch.object(wrapper, "get_relevant_context") as mock_get:
             mock_get.return_value = ["Mocked context"]
 
-            with patch("src.chat_manager.litellm.completion") as mock_completion:
+            with patch("src.wrapper.litellm.completion") as mock_completion:
                 mock_choice = MagicMock()
                 mock_choice.message.content = "Reply"
                 mock_completion.return_value.choices = [mock_choice]
@@ -354,7 +350,7 @@ class TestRAGWrapperChat:
     def test_chat_manages_conversation_history(self, wrapper):
         session_id = "history_test"
 
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply 1"
             mock_completion.return_value.choices = [mock_choice]
@@ -369,7 +365,7 @@ class TestRAGWrapperChat:
             assert len(messages) == 4  # system + 2 history + current user
 
     def test_chat_handles_llm_error(self, wrapper):
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_completion.side_effect = Exception("API error")
             response = wrapper.chat(session_id="test", message="Hello")
             assert "Error calling LLM" in response["message"]
@@ -389,7 +385,7 @@ class TestRAGWrapperChat:
     def test_chat_rebuilds_on_file_change(self, wrapper, tmp_path):
         data_dir = tmp_path / "data"
 
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply"
             mock_completion.return_value.choices = [mock_choice]
@@ -400,7 +396,7 @@ class TestRAGWrapperChat:
         (data_dir / "new.txt").write_text("New content")
         wrapper._manifest = {}
 
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.wrapper.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply"
             mock_completion.return_value.choices = [mock_choice]
@@ -437,7 +433,4 @@ class TestRAGWrapperEndToEnd:
         assert wrapper.vector_store.count() > 0
         context = wrapper.get_relevant_context("What are the inputs to photosynthesis?")
         assert len(context) > 0
-        assert any(
-            "carbon dioxide" in doc.lower() or "sunlight" in doc.lower()
-            for doc in context
-        )
+        assert any("carbon dioxide" in doc.lower() or "sunlight" in doc.lower() for doc in context)
