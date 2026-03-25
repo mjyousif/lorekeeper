@@ -14,6 +14,7 @@ from telegram.ext import (
 )
 from src.config import get_config
 from src.wrapper import RAGWrapper
+from src.session_storage import SessionStorage
 from telegramify_markdown import convert
 
 logging.basicConfig(
@@ -34,6 +35,8 @@ logger.info(
 
 telegram_cfg = config.telegram or {}
 DB_PATH = telegram_cfg.get("session_db", "sessions.db")
+session_storage = SessionStorage(db_path=DB_PATH)
+
 TELEGRAM_BOT_TOKEN = telegram_cfg.get("bot_token")
 
 if not TELEGRAM_BOT_TOKEN:
@@ -68,50 +71,6 @@ def is_authorized(update: Update) -> bool:
         return True
 
     return False
-
-
-# --- SQLite session history ---
-
-
-def init_db():
-    try:
-        with sqlite3.connect(DB_PATH) as con:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS history (
-                    chat_id INTEGER PRIMARY KEY,
-                    messages TEXT
-                )
-            """)
-        logger.info("Initialized SQLite session DB at %s", DB_PATH)
-    except Exception as e:
-        logger.error("Failed to initialize DB: %s", e)
-
-
-def get_history(chat_id: int) -> list[dict]:
-    try:
-        with sqlite3.connect(DB_PATH) as con:
-            cur = con.execute(
-                "SELECT messages FROM history WHERE chat_id=?", (chat_id,)
-            )
-            row = cur.fetchone()
-            return json.loads(row[0]) if row else []
-    except Exception as e:
-        logger.error("Error reading history for chat_id %d: %s", chat_id, e)
-        return []
-
-
-def set_history(chat_id: int, messages: list[dict]):
-    try:
-        with sqlite3.connect(DB_PATH) as con:
-            con.execute(
-                "INSERT OR REPLACE INTO history (chat_id, messages) VALUES (?, ?)",
-                (chat_id, json.dumps(messages)),
-            )
-    except Exception as e:
-        logger.error("Error saving history for chat_id %d: %s", chat_id, e)
-
-
-init_db()
 
 
 # --- Handlers ---
