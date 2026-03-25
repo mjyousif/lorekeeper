@@ -42,7 +42,7 @@ SERVICES = {
             "uv",
             "run",
             "uvicorn",
-            "rag_wrapper.api:app",
+            "src.api:app",
             "--host",
             "127.0.0.1",
             "--port",
@@ -55,7 +55,7 @@ SERVICES = {
         "ready_url": "http://127.0.0.1:8000/",  # Health check endpoint
     },
     "telegram": {
-        "cmd": ["uv", "run", "python", "telegram_bot.py"],
+        "cmd": ["uv", "run", "python", "-m", "src.telegram_bot"],
         "pid": PID_DIR / "telegram.pid",
         "log": LOG_DIR / "telegram.log",
         "daemon": True,
@@ -63,7 +63,7 @@ SERVICES = {
         "ready_url": None,  # No health check for telegram
     },
     "ui": {
-        "cmd": ["uv", "run", "python", "gradio_app.py"],
+        "cmd": ["uv", "run", "python", "-m", "src.gradio_app"],
         "pid": PID_DIR / "ui.pid",
         "log": LOG_DIR / "ui.log",
         "daemon": True,
@@ -93,7 +93,7 @@ def is_running(service: str) -> bool:
         return False
 
 
-def wait_for_service(service: str, timeout: int = 60) -> bool:
+def wait_for_service(service: str, timeout: int = 300) -> bool:
     """Wait for a service's health check endpoint to be ready."""
     url = SERVICES[service].get("ready_url")
     if not url:
@@ -113,7 +113,7 @@ def wait_for_service(service: str, timeout: int = 60) -> bool:
                 logger.info(f"Service {service} is ready (health check passed)")
                 return True
         except requests.RequestException as e:
-            logger.debug(f"Health check failed for {service}: {e}")
+            logger.warning(f"Health check failed for {service}: {e}")
         time.sleep(1)
 
     logger.error(f"Service {service} failed to become ready within {timeout}s")
@@ -178,14 +178,18 @@ def start_service(service: str, restart: bool = False):
 
     logger.info(f"[{service}] Starting {' '.join(cmd)}")
     with open(log_path, "a") as log_file:
-        process = subprocess.Popen(
-            cmd,
-            cwd=ROOT,
-            env=env,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,  # daemonize (detach from parent)
-        )
+        kwargs = {
+            "cwd": ROOT.parent,
+            "env": env,
+            "stdout": log_file,
+            "stderr": subprocess.STDOUT,
+        }
+        if os.name == "nt":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            kwargs["start_new_session"] = True
+
+        process = subprocess.Popen(cmd, **kwargs)
     pid_path.write_text(str(process.pid))
     time.sleep(0.5)
     if is_running(service):
