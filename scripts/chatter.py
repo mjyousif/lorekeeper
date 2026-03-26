@@ -59,7 +59,7 @@ SERVICES = {
         "pid": PID_DIR / "telegram.pid",
         "log": LOG_DIR / "telegram.log",
         "daemon": True,
-        "depends_on": ["api"],  # Wait for API to be ready
+        "depends_on": [],  # No dependencies
         "ready_url": None,  # No health check for telegram
     },
     "ui": {
