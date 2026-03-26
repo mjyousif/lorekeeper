@@ -103,7 +103,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info("RAG response received for chat_id %d", chat_id)
     except Exception as e:
         logger.exception("Error in LoreKeeper")
-        assistant_msg = f"Error generating response: {e}"
+        assistant_msg = "An error occurred while generating the response."
 
     text, entities = convert(assistant_msg)
 
