@@ -104,6 +104,15 @@ class TestLoreKeeperInitialization:
         wrapper2 = LoreKeeper(config=cfg, files=str(tmp_path))
         assert wrapper2.vector_store.count() > 0
 
+    def test_chunk_threshold_skips_chunk_text(self, tmp_path):
+        """Test that _chunk_text is not called for content smaller than chunk_threshold."""
+        (tmp_path / "small.txt").write_text("Short content that is well below the threshold.")
+        cfg = make_config(db_path=str(tmp_path / "db"), chunk_threshold=5000)
+
+        with patch.object(LoreKeeper, '_chunk_text') as mock_chunk_text:
+            wrapper = LoreKeeper(config=cfg, files=str(tmp_path))
+            mock_chunk_text.assert_not_called()
+
 
 class TestLoreKeeperFileOperations:
 
