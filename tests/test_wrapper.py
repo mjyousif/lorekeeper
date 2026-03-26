@@ -104,6 +104,20 @@ class TestLoreKeeperInitialization:
         wrapper2 = LoreKeeper(config=cfg, files=str(tmp_path))
         assert wrapper2.vector_store.count() > 0
 
+    def test_init_handles_missing_context_file(self, tmp_path, caplog):
+        import logging
+        caplog.set_level(logging.ERROR)
+
+        missing_file = tmp_path / "missing_context.txt"
+        cfg = make_config(db_path=str(tmp_path / "db"), context_file=str(missing_file))
+
+        # Initialize LoreKeeper with missing context file
+        wrapper = LoreKeeper(config=cfg, files=str(tmp_path))
+
+        # Verify the context is empty and the error was logged
+        assert wrapper.context == ""
+        assert f"Failed to read context file {missing_file}" in caplog.text
+
 
 class TestLoreKeeperFileOperations:
 
