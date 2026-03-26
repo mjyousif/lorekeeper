@@ -1,0 +1,15 @@
+services:
+  lorekeeper:
+    # Update this to match your actual GitHub username or organization if different
+    image: ghcr.io/${GITHUB_ACTOR:-mjyousif}/lorekeeper:latest
+    container_name: lorekeeper
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - lorekeeper-db:/.db
+      # Mount the local data folder so the container can read character.md & lore files
+      - ./data:/app/data
+
+volumes:
+  lorekeeper-db:
