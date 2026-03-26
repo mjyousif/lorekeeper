@@ -184,6 +184,11 @@ class TestLoreKeeperFileOperations:
     def test_read_file_pdf(self, wrapper, tmp_path):
         pytest.skip("PDF test requires sample PDF file")
 
+    def test_read_file_not_found(self, wrapper, tmp_path):
+        non_existent_file = str(tmp_path / "does_not_exist.txt")
+        with pytest.raises(FileNotFoundError, match=f"File not found: {non_existent_file}"):
+            wrapper._read_file(non_existent_file)
+
     def test_chunk_text_splits_correctly(self, wrapper):
         text = "A" * 2500
         chunks = wrapper._chunk_text(text, chunk_size=1000, overlap=200)
