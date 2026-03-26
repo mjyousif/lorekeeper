@@ -85,26 +85,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
     user_msg = update.message.text
-
-    # In group chats, only respond if mentioned or replied to
-    chat_type = update.effective_chat.type
-    if chat_type in ["group", "supergroup"]:
-        bot = context.bot
-        replied_to_bot = (
-            update.message.reply_to_message
-            and update.message.reply_to_message.from_user.id == bot.id
-        )
-        mentioned = bot.username and f"@{bot.username}" in user_msg
-
-        if not (replied_to_bot or mentioned):
-            return
-
-        if bot.username:
-            user_msg = user_msg.replace(f"@{bot.username}", "").strip()
-            
-    if not user_msg:
-        return
-
     logger.info("Received message from chat_id %d: %s", chat_id, user_msg[:100])
 
     await update.message.chat.send_action("typing")
