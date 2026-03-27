@@ -2,6 +2,7 @@ import pytest
 import json
 from src.config import Config, _expand_env_vars, get_config
 
+
 def test_expand_env_vars(monkeypatch):
     """Test environment variable expansion in strings, lists, and dicts."""
     monkeypatch.setenv("TEST_VAR", "hello")
@@ -21,10 +22,16 @@ def test_expand_env_vars(monkeypatch):
     assert _expand_env_vars("value is ${TEST_INT}") == "value is 42"
 
     # Lists
-    assert _expand_env_vars(["${TEST_VAR}", "static", "${MISSING:def}"]) == ["hello", "static", "def"]
+    assert _expand_env_vars(["${TEST_VAR}", "static", "${MISSING:def}"]) == [
+        "hello",
+        "static",
+        "def",
+    ]
 
     # Dicts
-    assert _expand_env_vars({"key1": "${TEST_VAR}", "key2": {"nested": "${TEST_INT}"}}) == {"key1": "hello", "key2": {"nested": "42"}}
+    assert _expand_env_vars(
+        {"key1": "${TEST_VAR}", "key2": {"nested": "${TEST_INT}"}}
+    ) == {"key1": "hello", "key2": {"nested": "42"}}
 
     # Other types unchanged
     assert _expand_env_vars(42) == 42
@@ -58,10 +65,14 @@ def test_from_file_unsupported_format(tmp_path):
     with pytest.raises(ValueError, match="Unsupported format: .ini"):
         Config.from_file(config_file)
 
+
 def test_from_file_not_found():
     """Test that Config.from_file raises FileNotFoundError for missing files."""
-    with pytest.raises(FileNotFoundError, match="Config file not found: non_existent.yaml"):
+    with pytest.raises(
+        FileNotFoundError, match="Config file not found: non_existent.yaml"
+    ):
         Config.from_file("non_existent.yaml")
+
 
 def test_from_file_yaml(tmp_path, monkeypatch):
     """Test that Config.from_file correctly loads a YAML file."""
@@ -81,6 +92,7 @@ def test_from_file_yaml(tmp_path, monkeypatch):
 
     # Test ImportError handling when yaml is not installed
     import src.config
+
     monkeypatch.setattr(src.config, "yaml", None)
     with pytest.raises(ImportError, match="PyYAML is required"):
         Config.from_file(config_file)
@@ -104,6 +116,7 @@ def test_from_file_toml(tmp_path, monkeypatch):
 
     # Test ImportError handling when toml is not installed
     import src.config
+
     monkeypatch.setattr(src.config, "toml", None)
     with pytest.raises(ImportError, match="toml is required"):
         Config.from_file(config_file)
@@ -154,11 +167,7 @@ def test_get_config(tmp_path):
 
 def test_from_file_json(tmp_path):
     """Test that Config.from_file correctly loads a JSON file."""
-    config_data = {
-        "files": "test_data",
-        "db_path": "test_db",
-        "log_level": "DEBUG"
-    }
+    config_data = {"files": "test_data", "db_path": "test_db", "log_level": "DEBUG"}
     config_file = tmp_path / "config.json"
     config_file.write_text(json.dumps(config_data))
 

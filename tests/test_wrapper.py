@@ -106,6 +106,7 @@ class TestLoreKeeperInitialization:
 
     def test_init_handles_missing_context_file(self, tmp_path, caplog):
         import logging
+
         caplog.set_level(logging.ERROR)
 
         missing_file = tmp_path / "missing_context.txt"
@@ -186,7 +187,9 @@ class TestLoreKeeperFileOperations:
 
     def test_read_file_not_found(self, wrapper, tmp_path):
         non_existent_file = str(tmp_path / "does_not_exist.txt")
-        with pytest.raises(FileNotFoundError, match=f"File not found: {non_existent_file}"):
+        with pytest.raises(
+            FileNotFoundError, match=f"File not found: {non_existent_file}"
+        ):
             wrapper._read_file(non_existent_file)
 
     def test_chunk_text_splits_correctly(self, wrapper):
