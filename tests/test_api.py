@@ -5,11 +5,13 @@ from unittest.mock import MagicMock, patch
 from src.api import app, get_lorekeeper
 from src.wrapper import LoreKeeper
 
+
 @pytest.fixture
 def client():
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
 
 def test_read_root(client):
     response = client.get("/")
@@ -18,28 +20,26 @@ def test_read_root(client):
         "message": "LoreKeeper API is running. POST to /v1/chat/completions to interact."
     }
 
+
 def test_chat_completions_success(client):
     mock_rag = MagicMock(spec=LoreKeeper)
     mock_rag.chat.return_value = {
         "message": "Mocked LLM response",
-        "context": ["mocked context"]
+        "context": ["mocked context"],
     }
 
     app.dependency_overrides[get_lorekeeper] = lambda: mock_rag
 
     request_data = {
         "model": "test-model",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ]
+        "messages": [{"role": "user", "content": "Hello"}],
     }
 
     response = client.post("/v1/chat/completions", json=request_data)
 
     # Assert dependency override worked and mock was called
     mock_rag.chat.assert_called_once_with(
-        session_id="api_session_placeholder",
-        message="Hello"
+        session_id="api_session_placeholder", message="Hello"
     )
 
     assert response.status_code == 200
@@ -51,20 +51,19 @@ def test_chat_completions_success(client):
     assert "id" in data
     assert data["object"] == "chat.completion"
 
+
 def test_chat_completions_no_context(client):
     mock_rag = MagicMock(spec=LoreKeeper)
     mock_rag.chat.return_value = {
         "message": "Mocked LLM response",
-        "context": [] # Context could be empty
+        "context": [],  # Context could be empty
     }
 
     app.dependency_overrides[get_lorekeeper] = lambda: mock_rag
 
     request_data = {
         "model": "test-model",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ]
+        "messages": [{"role": "user", "content": "Hello"}],
     }
 
     response = client.post("/v1/chat/completions", json=request_data)
@@ -73,11 +72,9 @@ def test_chat_completions_no_context(client):
     data = response.json()
     assert data["context"] is None
 
+
 def test_chat_completions_empty_messages(client):
-    request_data = {
-        "model": "test-model",
-        "messages": []
-    }
+    request_data = {"model": "test-model", "messages": []}
 
     response = client.post("/v1/chat/completions", json=request_data)
 
@@ -93,15 +90,14 @@ def test_chat_completions_rag_exception(client):
 
     request_data = {
         "model": "test-model",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ]
+        "messages": [{"role": "user", "content": "Hello"}],
     }
 
     response = client.post("/v1/chat/completions", json=request_data)
 
     assert response.status_code == 500
     assert response.json()["detail"] == "RAG error: Something went wrong"
+
 
 @patch("src.api.LoreKeeper")
 @patch("src.api.get_config")
