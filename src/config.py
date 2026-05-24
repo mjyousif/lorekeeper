@@ -47,7 +47,11 @@ class Config(BaseSettings):
         super().__init__(**data)
         if isinstance(self.allowed_user_ids, str):
             if self.allowed_user_ids.strip():
-                self.allowed_user_ids = [int(x.strip()) for x in self.allowed_user_ids.split(",") if x.strip()]
+                self.allowed_user_ids = [
+                    int(x.strip())
+                    for x in self.allowed_user_ids.split(",")
+                    if x.strip()
+                ]
             else:
                 self.allowed_user_ids = None
         elif isinstance(self.allowed_user_ids, int):
@@ -55,7 +59,11 @@ class Config(BaseSettings):
 
         if isinstance(self.allowed_chat_ids, str):
             if self.allowed_chat_ids.strip():
-                self.allowed_chat_ids = [int(x.strip()) for x in self.allowed_chat_ids.split(",") if x.strip()]
+                self.allowed_chat_ids = [
+                    int(x.strip())
+                    for x in self.allowed_chat_ids.split(",")
+                    if x.strip()
+                ]
             else:
                 self.allowed_chat_ids = None
         elif isinstance(self.allowed_chat_ids, int):

@@ -1,5 +1,3 @@
-
-
 def test_list_int(monkeypatch):
     from src.config import Config
 

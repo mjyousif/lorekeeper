@@ -1,5 +1,3 @@
-
-
 def test_list_str(monkeypatch):
     from src.config import Config
 
