@@ -27,6 +27,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "black",
     "ruff",
+    "reportlab>=4.5.1",
 ]
 
 [tool.pytest.ini_options]

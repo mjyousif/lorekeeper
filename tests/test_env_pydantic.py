@@ -1,5 +1,3 @@
-
-
 def test_env_pydantic(monkeypatch):
     monkeypatch.setenv("ALLOWED_CHAT_IDS", "-100123")
     monkeypatch.setenv("ALLOWED_USER_IDS", "456")

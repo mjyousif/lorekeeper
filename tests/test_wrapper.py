@@ -183,7 +183,9 @@ class TestLoreKeeperFileOperations:
         assert wrapper._read_file(str(file_path)) == "# Markdown content"
 
     def test_read_file_pdf(self, wrapper, tmp_path):
-        pytest.skip("PDF test requires sample PDF file")
+        file_path = tmp_path / "test2.pdf"
+        file_path.write_bytes(open("tests/sample.pdf", "rb").read())
+        assert "Hello, World!" in wrapper._read_file(str(file_path))
 
     def test_read_file_not_found(self, wrapper, tmp_path):
         non_existent_file = str(tmp_path / "does_not_exist.txt")
@@ -435,7 +437,15 @@ class TestLoreKeeperChat:
 class TestLoreKeeperWithPdf:
 
     def test_read_pdf_file(self, tmp_path):
-        pytest.skip("PDF test requires sample PDF file")
+        from src.wrapper import LoreKeeper
+        pdf_dir = tmp_path / "pdf_data"
+        pdf_dir.mkdir()
+        pdf_path = pdf_dir / "test.pdf"
+        pdf_path.write_bytes(open("tests/sample.pdf", "rb").read())
+
+        from src.config import Config
+        keeper = LoreKeeper(config=Config(), files=[str(pdf_dir)])
+        assert "Hello, World!" in keeper._read_file(str(pdf_path))
 
 
 @pytest.mark.integration

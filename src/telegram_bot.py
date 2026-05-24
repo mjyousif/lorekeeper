@@ -101,7 +101,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if bot.username:
             user_msg = user_msg.replace(f"@{bot.username}", "").strip()
-            
+
     if not user_msg:
         return
 
@@ -121,7 +121,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = wrapper.chat(session_id=session_id, message=user_msg)
         assistant_msg = response["message"]
         logger.info("RAG response received for chat_id %d", chat_id)
-    except Exception as e:
+    except Exception:
         logger.exception("Error in LoreKeeper")
         assistant_msg = "An error occurred while generating the response."
 
