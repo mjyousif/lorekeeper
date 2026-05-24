@@ -42,6 +42,42 @@ response_2 = wrapper.chat(session_id=session_id, message=user_message_2)
 print(response_2)
 ```
 
+## Configuration Examples
+
+The project uses `config.yaml` or `.env` to configure the LLM provider, as it is powered by `litellm`. Here are examples of how to configure different providers.
+
+### Local Ollama
+
+To use a local instance of [Ollama](https://ollama.com/), you need to prefix your model name with `ollama/` and specify the `api_base` pointing to your local Ollama server.
+
+**In `config.yaml`:**
+```yaml
+llm:
+  model: "ollama/llama3"
+  api_base: "http://localhost:11434"
+  # api_key is not required for local Ollama, but can be left empty
+  api_key: ""
+```
+
+### OpenRouter
+
+To use [OpenRouter](https://openrouter.ai/), prefix the model name with `openrouter/` and provide your OpenRouter API key.
+
+**In `config.yaml`:**
+```yaml
+llm:
+  model: "openrouter/anthropic/claude-3-opus"
+  api_key: "sk-or-v1-..."
+```
+
+**Using environment variables (`.env`):**
+Alternatively, you can set these using environment variables if your `config.yaml` references them like `${LLM_API_KEY}`.
+
+```env
+LLM_MODEL="openrouter/anthropic/claude-3-opus"
+LLM_API_KEY="sk-or-v1-..."
+```
+
 ## Development Setup
 
 This project uses [black](https://github.com/psf/black) for code formatting. To format your code:
