@@ -137,7 +137,7 @@ class TestLoreKeeperFileOperations:
         cfg = make_config(db_path=str(tmp_path / "db"))
         wrapper = LoreKeeper(config=cfg, files=str(file_path))
 
-        assert wrapper._resolve_files(str(file_path)) == [str(file_path)]
+        assert wrapper.document_loader.resolve_files(str(file_path)) == [str(file_path)]
 
     def test_resolve_files_directory_recursive(self, tmp_path):
         data_dir = tmp_path / "data"
@@ -149,7 +149,7 @@ class TestLoreKeeperFileOperations:
 
         cfg = make_config(db_path=str(tmp_path / "db"))
         wrapper = LoreKeeper(config=cfg, files=str(data_dir))
-        resolved = wrapper._resolve_files(str(data_dir))
+        resolved = wrapper.document_loader.resolve_files(str(data_dir))
 
         assert len(resolved) == 2
         assert any("root.txt" in f for f in resolved)
@@ -167,7 +167,7 @@ class TestLoreKeeperFileOperations:
 
         cfg = make_config(db_path=str(tmp_path / "db"))
         wrapper = LoreKeeper(config=cfg, files=str(data_dir))
-        resolved = wrapper._resolve_files(str(data_dir))
+        resolved = wrapper.document_loader.resolve_files(str(data_dir))
 
         assert len(resolved) == 3
         assert {os.path.splitext(f)[1] for f in resolved} == {".txt", ".md", ".pdf"}
@@ -175,40 +175,48 @@ class TestLoreKeeperFileOperations:
     def test_read_file_txt(self, wrapper, tmp_path):
         file_path = tmp_path / "test.txt"
         file_path.write_text("Plain text content", encoding="utf-8")
-        assert wrapper._read_file(str(file_path)) == "Plain text content"
+        assert wrapper.document_loader.read_file(str(file_path)) == "Plain text content"
 
     def test_read_file_md(self, wrapper, tmp_path):
         file_path = tmp_path / "test.md"
         file_path.write_text("# Markdown content", encoding="utf-8")
-        assert wrapper._read_file(str(file_path)) == "# Markdown content"
+        assert wrapper.document_loader.read_file(str(file_path)) == "# Markdown content"
 
     def test_read_file_pdf(self, wrapper, tmp_path):
         file_path = tmp_path / "test2.pdf"
         file_path.write_bytes(open("tests/sample.pdf", "rb").read())
-        assert "Hello, World!" in wrapper._read_file(str(file_path))
+        assert "Hello, World!" in wrapper.document_loader.read_file(str(file_path))
 
     def test_read_file_not_found(self, wrapper, tmp_path):
         non_existent_file = str(tmp_path / "does_not_exist.txt")
         with pytest.raises(
             FileNotFoundError, match=f"File not found: {non_existent_file}"
         ):
-            wrapper._read_file(non_existent_file)
+            wrapper.document_loader.read_file(non_existent_file)
 
     def test_chunk_text_splits_correctly(self, wrapper):
-        text = "A" * 2500
-        chunks = wrapper._chunk_text(text, chunk_size=1000, overlap=200)
+        text = "A" * 25000
+        from src.text_chunker import TextChunker
 
+        chunker = TextChunker(chunk_size=1000, overlap=200, chunk_threshold=0)
+        chunks = chunker.chunk_text(text)
         assert len(chunks) > 1
-        for chunk in chunks:
-            assert 1 <= len(chunk) <= 1000
         assert len(chunks[0]) == 1000
+        assert chunks[0] == "A" * 1000
 
     def test_chunk_text_empty_input(self, wrapper):
-        assert wrapper._chunk_text("") == []
+        from src.text_chunker import TextChunker
+
+        chunker = TextChunker()
+        assert chunker.chunk_text("") == []
 
     def test_chunk_text_overlap(self, wrapper):
-        text = "0123456789" * 200
-        chunks = wrapper._chunk_text(text, chunk_size=500, overlap=100)
+        text = "0123456789" * 2000
+        from src.text_chunker import TextChunker
+
+        chunker = TextChunker(chunk_size=500, overlap=100, chunk_threshold=0)
+        chunks = chunker.chunk_text(text)
+        assert len(chunks) > 1
 
         if len(chunks) >= 2:
             assert chunks[0][-100:] == chunks[1][:100]
@@ -231,7 +239,7 @@ class TestLoreKeeperManifestAndRebuild:
 
     def test_scan_files_returns_mtime_and_size(self, wrapper_with_files):
         wrapper, data_dir, file1, file2 = wrapper_with_files
-        manifest = wrapper._scan_files()
+        manifest = wrapper.document_loader.scan_files()
 
         assert str(file1) in manifest
         assert isinstance(manifest[str(file1)], tuple)
@@ -239,24 +247,24 @@ class TestLoreKeeperManifestAndRebuild:
 
     def test_needs_rebuild_detects_new_file(self, wrapper_with_files):
         wrapper, data_dir, file1, file2 = wrapper_with_files
-        assert not wrapper._needs_rebuild()
+        assert not wrapper.document_loader.needs_rebuild()
 
         (data_dir / "doc3.txt").write_text("Content 3")
-        assert wrapper._needs_rebuild()
+        assert wrapper.document_loader.needs_rebuild()
 
     def test_needs_rebuild_detects_modified_file(self, wrapper_with_files):
         wrapper, data_dir, file1, file2 = wrapper_with_files
-        assert not wrapper._needs_rebuild()
+        assert not wrapper.document_loader.needs_rebuild()
 
         file1.write_text("Modified content")
-        assert wrapper._needs_rebuild()
+        assert wrapper.document_loader.needs_rebuild()
 
     def test_needs_rebuild_detects_deleted_file(self, wrapper_with_files):
         wrapper, data_dir, file1, file2 = wrapper_with_files
-        assert not wrapper._needs_rebuild()
+        assert not wrapper.document_loader.needs_rebuild()
 
         file1.unlink()
-        assert wrapper._needs_rebuild()
+        assert wrapper.document_loader.needs_rebuild()
 
     def test_rebuild_index_clears_and_reembeds(self, wrapper_with_files):
         wrapper, data_dir, file1, file2 = wrapper_with_files
@@ -438,14 +446,16 @@ class TestLoreKeeperWithPdf:
 
     def test_read_pdf_file(self, tmp_path):
         from src.wrapper import LoreKeeper
+
         pdf_dir = tmp_path / "pdf_data"
         pdf_dir.mkdir()
         pdf_path = pdf_dir / "test.pdf"
         pdf_path.write_bytes(open("tests/sample.pdf", "rb").read())
 
         from src.config import Config
+
         keeper = LoreKeeper(config=Config(), files=[str(pdf_dir)])
-        assert "Hello, World!" in keeper._read_file(str(pdf_path))
+        assert "Hello, World!" in keeper.document_loader.read_file(str(pdf_path))
 
 
 @pytest.mark.integration

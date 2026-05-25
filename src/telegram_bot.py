@@ -43,6 +43,7 @@ if not TELEGRAM_BOT_TOKEN:
 
 @lru_cache()
 def get_wrapper() -> LoreKeeper:
+    """Dependency provider for LoreKeeper."""
     logger.info("Initializing LoreKeeper for Telegram bot...")
     wrapper = LoreKeeper(config)
     logger.info("LoreKeeper initialization complete.")
@@ -50,6 +51,7 @@ def get_wrapper() -> LoreKeeper:
 
 
 def is_authorized(update: Update) -> bool:
+    """Check if the user/chat is allowed to interact with the bot."""
     user = update.effective_user
     chat = update.effective_chat
 
@@ -74,6 +76,7 @@ def is_authorized(update: Update) -> bool:
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process incoming user messages."""
     if not is_authorized(update):
         logger.warning(
             "Unauthorized access: user=%s chat=%s",
@@ -141,6 +144,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle the /start command."""
     if not is_authorized(update):
         logger.warning(
             "Unauthorized /start from user=%s chat=%s",
@@ -154,6 +158,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    """Start the Telegram bot."""
     logger.info("Starting Telegram bot")
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))

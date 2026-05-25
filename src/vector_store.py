@@ -84,10 +84,14 @@ class ChromaVectorStore(VectorStore):
         self.client = chromadb.PersistentClient(path=self.db_path)
 
         class SentenceTransformerEmbeddingFunction(chromadb.EmbeddingFunction):
+            """ChromaDB embedding function using SentenceTransformer."""
+
             def __init__(self, model):
+                """Initialize with a specific model."""
                 self.model = model
 
             def __call__(self, input: list[str]) -> list[list[float]]:
+                """Encode input texts into embeddings."""
                 return self.model.encode(input).tolist()
 
         self.embedding_fn = SentenceTransformerEmbeddingFunction(self.embedding_model)

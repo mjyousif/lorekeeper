@@ -21,28 +21,38 @@ logger = logging.getLogger(__name__)
 
 
 class ChatMessage(BaseModel):
+    """A message within a chat conversation."""
+
     role: str
     content: str
 
 
 class ChatCompletionRequest(BaseModel):
+    """Request model for chat completions."""
+
     model: str
     messages: List[ChatMessage]
 
 
 class ChatCompletionResponseChoice(BaseModel):
+    """Choice in a chat completion response."""
+
     index: int
     message: ChatMessage
     finish_reason: str = "stop"
 
 
 class Usage(BaseModel):
+    """Usage statistics for the chat completion."""
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
 
 
 class ChatCompletionResponse(BaseModel):
+    """Response model for chat completions."""
+
     id: str = Field(default_factory=lambda: f"chatcmpl-{uuid.uuid4().hex}")
     object: str = "chat.completion"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -59,6 +69,7 @@ ConfigDep = Annotated[Config, Depends(get_config)]
 
 @lru_cache()
 def get_lorekeeper() -> LoreKeeper:
+    """Dependency provider for LoreKeeper."""
     config = get_config()
     logger.info("Initializing LoreKeeper...")
     wrapper = LoreKeeper(config)
@@ -79,6 +90,7 @@ async def chat_completions(
     request: ChatCompletionRequest,
     rag: RAGDep,
 ):
+    """Handle chat completion requests."""
     if not request.messages:
         raise HTTPException(status_code=400, detail="Messages list cannot be empty.")
 
@@ -113,6 +125,7 @@ async def chat_completions(
 
 @app.get("/")
 def read_root():
+    """Health check endpoint."""
     logger.info("Health check endpoint called")
     return {
         "message": "LoreKeeper API is running. POST to /v1/chat/completions to interact."
