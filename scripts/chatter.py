@@ -8,7 +8,8 @@ Usage:
   chatter logs [api|telegram]          Follow logs (default: both)
   chatter status                       Show which services are running
   chatter purge-logs                   Clear all log files before starting
-  Chatter help                       Show this help
+  chatter approve <CODE>               Approve a pairing request code
+  chatter help                         Show this help
 """
 
 import os
@@ -16,7 +17,6 @@ import sys
 import subprocess
 import time
 import signal
-import json
 import logging
 import requests
 from pathlib import Path
@@ -291,7 +291,6 @@ def main(argv: list[str] | None = None):
 
     elif command == "logs":
         services = args if args else ["api", "telegram"]
-        follow = True
         # Simple: if no services, default to both
         for s in services:
             if s not in SERVICES:
@@ -314,6 +313,15 @@ def main(argv: list[str] | None = None):
             status = "RUNNING" if running else "STOPPED"
             pid = read_pid(SERVICES[s]["pid"])
             logger.info(f"  {s:10} {status:10} PID: {pid if pid else '-'}")
+
+    elif command == "approve":
+        if not args:
+            logger.error("Usage: chatter approve <CODE>")
+            return 1
+
+        code = args[0]
+        # Run the approve_pair module directly
+        subprocess.run(["uv", "run", "python", "-m", "src.approve_pair", code], cwd=ROOT.parent)
 
     else:
         logger.error(f"Unknown command: {command}")
