@@ -185,7 +185,9 @@ def start_service(service: str, restart: bool = False):
             "stderr": subprocess.STDOUT,
         }
         if os.name == "nt":
-            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+            kwargs["creationflags"] = (
+                subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+            )
         else:
             kwargs["start_new_session"] = True
 
