@@ -16,7 +16,6 @@ import sys
 import subprocess
 import time
 import signal
-import json
 import logging
 import requests
 from pathlib import Path
@@ -185,7 +184,9 @@ def start_service(service: str, restart: bool = False):
             "stderr": subprocess.STDOUT,
         }
         if os.name == "nt":
-            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+            kwargs["creationflags"] = (
+                subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+            )
         else:
             kwargs["start_new_session"] = True
 
@@ -291,7 +292,7 @@ def main(argv: list[str] | None = None):
 
     elif command == "logs":
         services = args if args else ["api", "telegram"]
-        follow = True
+
         # Simple: if no services, default to both
         for s in services:
             if s not in SERVICES:

@@ -14,12 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 class LoreKeeper:
+    """Main LoreKeeper logic class."""
+
     def __init__(
         self,
         config: Config,
         vector_store: VectorStore | None = None,
         files: list[str] | str | None = None,
     ):
+        """Initialize the LoreKeeper wrapper."""
         self.config = config
 
         # Configure logging
@@ -75,6 +78,7 @@ class LoreKeeper:
 
     @_manifest.setter
     def _manifest(self, val):
+        """Set the manifest value."""
         self.document_loader._manifest = val
 
     def _load_context_character(self):
@@ -101,18 +105,6 @@ class LoreKeeper:
                     e,
                 )
 
-    def _resolve_files(self, input_paths: list[str] | str) -> list[str]:
-        """Deprecated: Handled by DocumentLoader."""
-        return self.document_loader.resolve_files(input_paths)
-
-    def _scan_files(self) -> dict[str, tuple[float, int]]:
-        """Deprecated: Handled by DocumentLoader."""
-        return self.document_loader.scan_files()
-
-    def _needs_rebuild(self) -> bool:
-        """Deprecated: Handled by DocumentLoader."""
-        return self.document_loader.needs_rebuild()
-
     def _rebuild_index(self):
         """Delete the collection and re-embed all files from scratch."""
         logger.info("Data changes detected. Rebuilding index...")
@@ -120,19 +112,6 @@ class LoreKeeper:
         self.document_loader.update_files()
         self._load_and_embed_files(force=True)
         logger.info("Index rebuild complete.")
-
-    def _read_file(self, file_path: str) -> str:
-        """Deprecated: Handled by DocumentLoader."""
-        return self.document_loader.read_file(file_path)
-
-    def _chunk_text(
-        self, text: str, chunk_size: int = 1000, overlap: int = 200
-    ) -> list[str]:
-        """Deprecated: Handled by TextChunker."""
-        # Using a temporary chunker to respect backward compatibility
-        # if anyone was relying on passing varying chunk_sizes.
-        temp_chunker = TextChunker(chunk_size, overlap, 0)
-        return temp_chunker.chunk_text(text)
 
     def _load_and_embed_files(self, force: bool = False):
         """Load files, chunk them, and store them in the vector DB.

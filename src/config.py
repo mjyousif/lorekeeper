@@ -44,6 +44,7 @@ class Config(BaseSettings):
     model_config = SettingsConfigDict(env_ignore_empty=True, extra="ignore")
 
     def __init__(self, **data):
+        """Initialize the Config, parsing comma-separated lists."""
         super().__init__(**data)
         if isinstance(self.allowed_user_ids, str):
             if self.allowed_user_ids.strip():
@@ -99,6 +100,7 @@ def _expand_env_vars(data: Any) -> Any:
     if isinstance(data, str):
 
         def replace_var(match):
+            """Replace a single matched variable."""
             var_expr = match.group(1)
             if ":" in var_expr:
                 var_name, default = var_expr.split(":", 1)
