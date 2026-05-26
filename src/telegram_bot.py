@@ -12,6 +12,7 @@ from telegram.ext import (
 from src.config import get_config
 from src.wrapper import LoreKeeper
 from src.session_storage import SessionStorage
+from src.auth_storage import AuthStorage
 from telegramify_markdown import convert
 
 logging.basicConfig(
@@ -33,6 +34,7 @@ logger.info(
 telegram_cfg = config.telegram or {}
 DB_PATH = telegram_cfg.get("session_db", "sessions.db")
 session_storage = SessionStorage(db_path=DB_PATH)
+auth_storage = AuthStorage(db_path=DB_PATH)
 
 TELEGRAM_BOT_TOKEN = telegram_cfg.get("bot_token")
 
@@ -55,20 +57,30 @@ def is_authorized(update: Update) -> bool:
     user = update.effective_user
     chat = update.effective_chat
 
-    if not ALLOWED_USER_IDS and not ALLOWED_CHAT_IDS:
-        logger.debug(
-            "No allowlist configured: access denied for user=%s chat=%s",
-            user.id if user else None,
-            chat.id if chat else None,
-        )
-        return False
-
+    # Check if they're statically allowed via config
     if ALLOWED_USER_IDS and user and user.id in ALLOWED_USER_IDS:
         return True
 
     if ALLOWED_CHAT_IDS and chat and chat.id in ALLOWED_CHAT_IDS:
         return True
 
+    # Check if they're dynamically allowed via db
+    if user and auth_storage.is_user_authorized(user.id):
+        return True
+
+    if chat and auth_storage.is_chat_authorized(chat.id):
+        return True
+
+    # Note: By default we deny if not explicitly allowed
+    return False
+
+def is_user_authorized_only(user) -> bool:
+    if not user:
+        return False
+    if ALLOWED_USER_IDS and user.id in ALLOWED_USER_IDS:
+        return True
+    if auth_storage.is_user_authorized(user.id):
+        return True
     return False
 
 
@@ -157,11 +169,59 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Ask me anything about the lore!")
 
 
+async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    chat = update.effective_chat
+
+    if not user:
+        return
+
+    chat_type = chat.type
+
+    if chat_type == "private":
+        # Check if user is already authorized
+        if is_user_authorized_only(user):
+            await update.message.reply_text("✅ You are already authorized!")
+            return
+
+        code = auth_storage.create_pending_pair(user.id)
+        logger.info("Pairing code %s generated for user %d", code, user.id)
+        msg = (
+            f"🔑 Your pairing code is: `{code}`\n\n"
+            "Take this code to the terminal where the bot is running and run:\n"
+            f"`chatter approve {code}`"
+        )
+        await update.message.reply_markdown(msg)
+        return
+
+    # In a group/channel chat
+    if not is_user_authorized_only(user):
+        await update.message.reply_text("❌ Only authorized users can pair channels.")
+        return
+
+    if is_authorized(update):
+        # We know the user is authorized, so if the overall chat is authorized, we are good.
+        # But let's check specifically if the chat is authorized.
+        if (ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS) or auth_storage.is_chat_authorized(chat.id):
+            await update.message.reply_text("✅ This chat is already authorized!")
+            return
+
+    code = auth_storage.create_pending_pair(user.id, chat.id)
+    logger.info("Pairing code %s generated for chat %d by user %d", code, chat.id, user.id)
+    msg = (
+        f"🔑 Chat pairing code is: `{code}`\n\n"
+        "Take this code to the terminal where the bot is running and run:\n"
+        f"`chatter approve {code}`"
+    )
+    await update.message.reply_markdown(msg)
+
+
 def main():
     """Start the Telegram bot."""
     logger.info("Starting Telegram bot")
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("pair", pair))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
 
