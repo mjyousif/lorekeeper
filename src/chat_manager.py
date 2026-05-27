@@ -61,7 +61,8 @@ class ChatManager:
             "role": "system",
             "content": (
                 "You are a helpful assistant. Use the following retrieved context to answer the user's question. "
-                "If the context does not contain the answer, say so. Keep responses concise.\n\n"
+                "If the context does not contain the answer, say so. "
+                "CRITICAL: Your response MUST be under 140 characters. Be extremely brief.\n\n"
                 f"Context:\n{context_str}\n\n---\n\nKey Context:\n{self.context}\n\n---\n\nCharacter:\n{self.character}"
             ),
         }

@@ -146,15 +146,61 @@ curl -X "POST" "http://127.0.0.1:8000/v1/chat/completions" \
 
 ## Running the Telegram Bot in Docker
 
-You can run the Telegram bot in a Docker container. Make sure you have created `.env` or set the necessary environment variables (like `TELEGRAM_BOT_TOKEN`, `LLM_API_KEY`, etc.) or configured them in `config.yaml`.
+You can run the Telegram bot either as a standalone container or alongside a bundled Ollama server using Docker Compose.
 
-### 1. Build the Docker Image
+### Option A: Using Docker Compose (Bundled Ollama for Local LLM)
+
+This is the recommended method to run LoreKeeper fully local/offline alongside a bundled Ollama LLM server.
+
+#### 1. Configure the Environment
+Uncomment the **Local Ollama Configuration (Bundled in Docker Compose)** section in your `.env` file, ensuring `COMPOSE_PROFILES` is set to `local-llm`:
+```env
+COMPOSE_PROFILES=local-llm
+LLM_API_KEY=ollama
+LLM_MODEL=ollama/llama3.2
+LLM_API_BASE=http://ollama:11434
+```
+*Note: The `COMPOSE_PROFILES=local-llm` setting instructs Docker Compose to load the conditional `ollama` service. If it is omitted or commented out, `docker compose up` will only start the `lorekeeper` bot container (useful when connecting to external APIs).*
+
+#### 2. Start the Services
+Launch the stack in detached mode:
+```shell
+docker compose up -d
+```
+This builds your local LoreKeeper bot image and spins up the active services based on your profile.
+
+#### 3. Automatic Model Pulling
+The stack includes a companion helper service (`ollama-pull-model`) that automatically pulls the configured `LLM_MODEL` (e.g., `llama3.2`) once the Ollama server starts up and becomes healthy. You don't need to pull it manually.
+
+*Note: If you ever want to manually pull a different model, you can run:*
+```shell
+docker exec -it ollama ollama pull <model-name>
+```
+
+#### 4. Authorizing the Bot (Pairing)
+If `ALLOWED_USER_IDS` is not pre-configured in `.env`, the bot will deny access by default. To authorize yourself:
+1. Search for your bot in Telegram and send `/pair` to generate a pairing code.
+2. Approve the code inside the running container using `uv`:
+   ```shell
+   docker compose exec lorekeeper uv run python -m src.approve_pair <CODE>
+   ```
+
+#### 5. Optional: GPU Acceleration
+To speed up local inference with an NVIDIA GPU, uncomment the `deploy` section under the `ollama` service in `docker-compose.yml`. (Note: This requires the [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-container-toolkit) to be installed on your host system).
+
+---
+
+### Option B: Standalone Docker Container
+
+To run only the Telegram bot container connecting to an external API (like OpenRouter or a separately running local Ollama):
+
+#### 1. Build the Docker Image
 
 ```shell
 docker build -t rag-telegram-bot .
 ```
 
-### 2. Run the Container
+#### 2. Run the Container
 
 ```shell
 docker run -d --name my-telegram-bot \

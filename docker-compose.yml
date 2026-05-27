@@ -6,10 +6,54 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TELEGRAM_SESSION_DB=/.db/sessions.db
     volumes:
       - lorekeeper-db:/.db
       # Mount the local data folder so the container can read character.md & lore files
       - ./data:/app/data
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    profiles:
+      - local-llm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Optional: Enable GPU acceleration if you have NVIDIA Container Toolkit installed
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  ollama-pull-model:
+    image: ollama/ollama:latest
+    container_name: ollama-pull-model
+    profiles:
+      - local-llm
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_HOST=ollama
+    entrypoint: /bin/sh
+    command: -c "ollama pull $${LLM_MODEL#ollama/}"
+    depends_on:
+      ollama:
+        condition: service_healthy
+
 volumes:
   lorekeeper-db:
+  ollama-data:

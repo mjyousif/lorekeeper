@@ -188,9 +188,10 @@ class TestLoreKeeperFileOperations:
         assert "Hello, World!" in wrapper.document_loader.read_file(str(file_path))
 
     def test_read_file_not_found(self, wrapper, tmp_path):
+        import re
         non_existent_file = str(tmp_path / "does_not_exist.txt")
         with pytest.raises(
-            FileNotFoundError, match=f"File not found: {non_existent_file}"
+            FileNotFoundError, match=re.escape(f"File not found: {non_existent_file}")
         ):
             wrapper.document_loader.read_file(non_existent_file)
 

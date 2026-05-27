@@ -32,6 +32,7 @@ llm:
 telegram:
   bot_token: ${TELEGRAM_BOT_TOKEN}
   endpoint: "http://127.0.0.1:8000/v1/chat/completions"
+  session_db: ${TELEGRAM_SESSION_DB:sessions.db}
 
 # Authorization - list of allowed Telegram user IDs and chat IDs
 allowed_user_ids: ${ALLOWED_USER_IDS}
