@@ -10,10 +10,10 @@ db_path: ".db"
 # Text chunking parameters
 chunk_size: 1000
 overlap: 200
-chunk_threshold: 10000
+chunk_threshold: 2000
 
 # Logging level (DEBUG, INFO, WARNING, ERROR)
-log_level: "INFO"
+log_level: "DEBUG"
 
 # Optional: path to primary context file (global instructions/preface)
 context_file: ${CONTEXT_FILE_PATH}

@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import logging
 import uuid
+import json
+import time
 
 from .vector_store import VectorStore, ChromaVectorStore
 from .config import Config, get_config
@@ -23,7 +25,9 @@ class LoreKeeper:
         files: list[str] | str | None = None,
     ):
         """Initialize the LoreKeeper wrapper."""
+        init_start = time.perf_counter()
         self.config = config
+        logger.info("Initializing LoreKeeper...")
 
         # Configure logging
         if not logging.getLogger().handlers:
@@ -31,18 +35,33 @@ class LoreKeeper:
                 level=getattr(logging, self.config.log_level.upper(), logging.INFO),
                 format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             )
+        else:
+            logging.getLogger().setLevel(getattr(logging, self.config.log_level.upper(), logging.INFO))
 
         # Core components
         raw_files = files if files is not None else self.config.files
-        self.document_loader = DocumentLoader(raw_files)
+        exclude_paths = []
+        if self.config.character_file:
+            exclude_paths.append(self.config.character_file)
+        if self.config.context_file:
+            exclude_paths.append(self.config.context_file)
+        logger.debug("Excluding paths from indexing: %s", exclude_paths)
+
+        self.document_loader = DocumentLoader(raw_files, exclude_paths=exclude_paths)
+        logger.info("DocumentLoader resolved %d files", len(self.document_loader.files))
         self.text_chunker = TextChunker(
             chunk_size=self.config.chunk_size,
             overlap=self.config.overlap,
             chunk_threshold=self.config.chunk_threshold,
         )
+        logger.debug(
+            "TextChunker configured: chunk_size=%d overlap=%d threshold=%d",
+            self.config.chunk_size, self.config.overlap, self.config.chunk_threshold,
+        )
 
         self.db_path = self.config.db_path
         self.vector_store = vector_store or ChromaVectorStore(db_path=self.db_path)
+        logger.info("VectorStore initialized at %s (%d existing documents)", self.db_path, self.vector_store.count())
 
         # Context and character
         self.context = ""
@@ -66,6 +85,9 @@ class LoreKeeper:
         # Sessions dictionary mapping ID to history list
         self.sessions: dict[str, list[dict]] = {}
 
+        init_elapsed = time.perf_counter() - init_start
+        logger.info("LoreKeeper fully initialized in %.2fs", init_elapsed)
+
     @property
     def files(self) -> list[str]:
         """Provides backwards compatibility for accessing loaded file paths."""
@@ -87,23 +109,33 @@ class LoreKeeper:
             try:
                 with open(self.config.context_file, "r", encoding="utf-8") as f:
                     self.context = f.read().strip()
-                logger.info("Loaded context from %s", self.config.context_file)
+                logger.info(
+                    "Loaded context from %s (%d chars)",
+                    self.config.context_file, len(self.context),
+                )
             except Exception as e:
                 logger.error(
                     "Failed to read context file %s: %s", self.config.context_file, e
                 )
+        else:
+            logger.debug("No context_file configured")
 
         if self.config.character_file:
             try:
                 with open(self.config.character_file, "r", encoding="utf-8") as f:
                     self.character = f.read().strip()
-                logger.info("Loaded character from %s", self.config.character_file)
+                logger.info(
+                    "Loaded character from %s (%d chars)",
+                    self.config.character_file, len(self.character),
+                )
             except Exception as e:
                 logger.error(
                     "Failed to read character file %s: %s",
                     self.config.character_file,
                     e,
                 )
+        else:
+            logger.debug("No character_file configured")
 
     def _rebuild_index(self):
         """Delete the collection and re-embed all files from scratch."""
@@ -119,11 +151,38 @@ class LoreKeeper:
         Args:
             force: If True, embed regardless of whether the collection is non-empty.
         """
-        if not force and self.vector_store.count() > 0:
-            logger.info("Collection already contains documents. Skipping embedding.")
+        manifest_path = os.path.join(self.db_path, "manifest.json")
+        persisted_manifest = None
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    persisted_manifest = json.load(f)
+            except Exception as e:
+                logger.warning("Failed to load persisted manifest: %s", e)
+
+        current_manifest = self.document_loader.scan_files()
+        serializable_manifest = {k: list(v) for k, v in current_manifest.items()}
+
+        needs_rebuild = (
+            force
+            or self.vector_store.count() == 0
+            or persisted_manifest is None
+            or persisted_manifest != serializable_manifest
+        )
+
+        if not needs_rebuild:
+            logger.info(
+                "Collection is up-to-date (%d documents). Skipping embedding.",
+                self.vector_store.count(),
+            )
+            # Sync manifest in loader so needs_rebuild() uses correct state
+            self.document_loader._manifest = current_manifest
             return
 
-        logger.info("Loading and embedding files...")
+        logger.info("Loading and embedding %d files...", len(self.document_loader.files))
+        embed_start = time.perf_counter()
+        self.vector_store.clear()
+        total_chunks = 0
         for file_path in self.document_loader.files:
             try:
                 content = self.document_loader.read_file(file_path)
@@ -136,21 +195,45 @@ class LoreKeeper:
                         metadatas=[{"source": file_path} for _ in chunks],
                         ids=ids,
                     )
-                    logger.debug("Embedded %d chunks from %s", len(chunks), file_path)
+                    total_chunks += len(chunks)
+                    logger.debug("Embedded %d chunks from %s (%d chars)", len(chunks), file_path, len(content))
+                else:
+                    logger.debug("No chunks produced from %s (%d chars)", file_path, len(content))
             except Exception as e:
                 logger.error("Error processing file %s: %s", file_path, e)
-        logger.info("Finished loading files.")
+        embed_elapsed = time.perf_counter() - embed_start
+        logger.info(
+            "Finished embedding: %d total chunks from %d files in %.2fs",
+            total_chunks, len(self.document_loader.files), embed_elapsed,
+        )
+
+        try:
+            os.makedirs(self.db_path, exist_ok=True)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(serializable_manifest, f, indent=2)
+        except Exception as e:
+            logger.error("Failed to save manifest to %s: %s", manifest_path, e)
 
     def get_relevant_context(self, message: str, n_results: int = 3) -> list[str]:
         """Query the vector store to get context relevant to the message."""
-        logger.debug("Querying vector store for: %s (n_results=%d)", message, n_results)
-        return self.vector_store.query(message, n_results=n_results)
+        logger.debug("Querying vector store for: %s (n_results=%d)", message[:80], n_results)
+        query_start = time.perf_counter()
+        results = self.vector_store.query(message, n_results=n_results)
+        query_elapsed = time.perf_counter() - query_start
+        logger.info(
+            "Vector query returned %d results in %.3fs",
+            len(results), query_elapsed,
+        )
+        return results
 
     def chat(self, session_id: str, message: str) -> dict:
         """Handle chat: retrieve context, manage history, call LLM, return response."""
+        logger.info("[session=%s] chat() called with message (%d chars)", session_id, len(message))
+        chat_start = time.perf_counter()
+
         # 0. Rebuild index if data files changed
         if self.document_loader.needs_rebuild():
-            logger.info("Data changes detected, rebuilding index...")
+            logger.info("[session=%s] Data changes detected, rebuilding index...", session_id)
             self._rebuild_index()
 
         # 1. Retrieve relevant context
@@ -159,8 +242,9 @@ class LoreKeeper:
         # 2. Manage conversation history
         if session_id not in self.sessions:
             self.sessions[session_id] = []
-            logger.debug("Created new session: %s", session_id)
+            logger.debug("[session=%s] Created new session", session_id)
         history = self.sessions[session_id]
+        logger.debug("[session=%s] Current history: %d messages", session_id, len(history))
 
         # 3. Ask ChatManager for response
         assistant_message = self.chat_manager.generate_response(
@@ -173,7 +257,15 @@ class LoreKeeper:
             # 4. Update history (only if no error)
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": assistant_message})
+            logger.debug("[session=%s] History updated to %d messages", session_id, len(history))
+        else:
+            logger.warning("[session=%s] LLM returned error, history not updated", session_id)
 
+        chat_elapsed = time.perf_counter() - chat_start
+        logger.info(
+            "[session=%s] chat() completed in %.2fs (response=%d chars)",
+            session_id, chat_elapsed, len(assistant_message),
+        )
         return {"message": assistant_message, "context": context}
 
 

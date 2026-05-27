@@ -30,9 +30,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-    # Optional: Enable GPU acceleration if you have NVIDIA Container Toolkit installed
+    # Optional: Enable GPU acceleration or limit CPU/Memory usage
     # deploy:
     #   resources:
+    #     limits:
+    #       cpus: '4'        # Limit Ollama to 4 CPU cores (adjust based on your CPU)
+    #       memory: 4096M    # Limit RAM usage
     #     reservations:
     #       devices:
     #         - driver: nvidia

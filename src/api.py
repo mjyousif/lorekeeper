@@ -10,8 +10,9 @@ from typing import Annotated, List, Optional
 from src.wrapper import LoreKeeper
 from src.config import Config, get_config
 
+config = get_config()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, config.log_level.upper(), logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -71,9 +72,11 @@ ConfigDep = Annotated[Config, Depends(get_config)]
 def get_lorekeeper() -> LoreKeeper:
     """Dependency provider for LoreKeeper."""
     config = get_config()
-    logger.info("Initializing LoreKeeper...")
+    logger.info("Initializing LoreKeeper for API...")
+    start = time.perf_counter()
     wrapper = LoreKeeper(config)
-    logger.info("LoreKeeper initialization complete.")
+    elapsed = time.perf_counter() - start
+    logger.info("LoreKeeper initialization complete (took %.2fs)", elapsed)
     return wrapper
 
 
@@ -92,18 +95,25 @@ async def chat_completions(
 ):
     """Handle chat completion requests."""
     if not request.messages:
+        logger.warning("Empty messages list in chat request")
         raise HTTPException(status_code=400, detail="Messages list cannot be empty.")
 
     user_message = request.messages[-1].content
-    logger.debug("Received chat request with message: %s", user_message[:100])
+    logger.info(
+        "API chat request: model=%s messages=%d last_msg=%d chars",
+        request.model, len(request.messages), len(user_message),
+    )
+    logger.debug("User message: %s", user_message[:200])
 
     # For now, use a placeholder session. In production, derive from auth/headers.
     session_id = "api_session_placeholder"
 
     try:
+        request_start = time.perf_counter()
         wrapper_response = rag.chat(session_id=session_id, message=user_message)
+        request_elapsed = time.perf_counter() - request_start
     except Exception as e:
-        logger.exception("Error in LoreKeeper")
+        logger.exception("Error in LoreKeeper during API request")
         raise HTTPException(status_code=500, detail=f"RAG error: {str(e)}") from e
 
     llm_message = wrapper_response.get("message", "No response from wrapper.")
@@ -119,7 +129,10 @@ async def chat_completions(
         context=retrieved_context if retrieved_context else None,
     )
 
-    logger.info("Successfully processed chat request")
+    logger.info(
+        "API request completed in %.2fs: response=%d chars, context_chunks=%d",
+        request_elapsed, len(llm_message), len(retrieved_context),
+    )
     return response
 
 

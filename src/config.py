@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import logging
 from pathlib import Path
 from typing import Any
 from functools import lru_cache
@@ -22,6 +23,8 @@ except ImportError:
 import json
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class Config(BaseSettings):
@@ -92,6 +95,8 @@ class Config(BaseSettings):
                 raise ValueError(f"Unsupported format: {path.suffix}")
 
         data = _expand_env_vars(data)  # Module-level function, no cls issue
+        logger.info("Config loaded from %s (%s format)", path, path.suffix)
+        logger.debug("Config values: %s", {k: v for k, v in data.items() if k not in ('llm',)})
         return cls(**data)
 
 
@@ -124,6 +129,9 @@ def _expand_env_vars(data: Any) -> Any:
 def get_config(config_path: str = "config.yaml") -> Config:
     """Cached config factory. Loads from file, falls back to defaults."""
     try:
-        return Config.from_file(config_path)
+        config = Config.from_file(config_path)
+        logger.info("Configuration loaded from %s", config_path)
+        return config
     except FileNotFoundError:
+        logger.warning("Config file %s not found, using defaults", config_path)
         return Config()

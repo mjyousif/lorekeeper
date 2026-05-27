@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import litellm
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,11 @@ class ChatManager:
         self.max_context_size = max_context_size
         self.context = context
         self.character = character
+        logger.info(
+            "ChatManager initialized: model=%s api_base=%s max_context=%d context_len=%d character_len=%d",
+            self.llm_model, self.llm_api_base, self.max_context_size,
+            len(self.context), len(self.character),
+        )
 
     def generate_response(
         self,
@@ -56,20 +62,48 @@ class ChatManager:
             if retrieved_context
             else "No relevant context found."
         )
+        logger.debug(
+            "Building prompt: %d retrieved chunks, context_str=%d chars",
+            len(retrieved_context), len(context_str),
+        )
+
+        model_name = self.llm_model or "gpt-3.5-turbo"
+        try:
+            char_tokens = litellm.token_counter(model=model_name, text=self.character) if self.character else 0
+            context_file_tokens = litellm.token_counter(model=model_name, text=self.context) if self.context else 0
+            retrieved_context_tokens = litellm.token_counter(model=model_name, text=context_str) if context_str else 0
+            history_tokens = litellm.token_counter(model=model_name, messages=history) if history else 0
+            user_message_tokens = litellm.token_counter(model=model_name, text=message) if message else 0
+            logger.debug(
+                "Token counts (pre-trimming): character=%d, context_files=%d, retrieved_context=%d, history=%d, user_message=%d",
+                char_tokens,
+                context_file_tokens,
+                retrieved_context_tokens,
+                history_tokens,
+                user_message_tokens,
+            )
+        except Exception as e:
+            logger.warning("Failed to count tokens for prompt components: %s", e)
 
         system_msg = {
             "role": "system",
             "content": (
-                "You are a helpful assistant. Use the following retrieved context to answer the user's question. "
-                "If the context does not contain the answer, say so. "
-                "CRITICAL: Your response MUST be under 140 characters. Be extremely brief.\n\n"
-                f"Context:\n{context_str}\n\n---\n\nKey Context:\n{self.context}\n\n---\n\nCharacter:\n{self.character}"
+                f"Character:\n{self.character}\n\n---\n\n"
+                f"Key Context:\n{self.context}\n\n---\n\n"
+                "You must fully embody the Character described above. "
+                "Use the following retrieved context to answer the user's question. "
+                "If the context does not contain the answer, do not guess or make up information. "
+                "Simply state that you do not know, while remaining in character. "
+                "CRITICAL: Your response MUST be under 3 sentences. Be extremely brief.\n\n"
+                f"Retrieved Context:\n{context_str}"
             ),
         }
+        logger.debug("System prompt length: %d chars", len(system_msg["content"]))
 
         # Enforce max context size
         # We loop until the token count of the combined messages is under the limit, or history runs out.
         try:
+            original_history_len = len(history)
             while len(history) > 0:
                 messages = (
                     [system_msg] + history + [{"role": "user", "content": message}]
@@ -81,6 +115,16 @@ class ChatManager:
                     break
                 # If too large, remove the oldest message in history
                 history.pop(0)
+            trimmed = original_history_len - len(history)
+            if trimmed > 0:
+                logger.info(
+                    "Trimmed %d messages from history to fit context window (was %d tokens)",
+                    trimmed, current_tokens if 'current_tokens' in dir() else -1,
+                )
+            logger.debug(
+                "Final message count: %d (system + %d history + user)",
+                len(history) + 2, len(history),
+            )
         except Exception as e:
             logger.warning("Failed to count tokens or truncate history: %s", e)
 
@@ -92,17 +136,25 @@ class ChatManager:
             return "LLM not configured: set OPENROUTER_API_KEY environment variable or provide llm.api_key in config."
 
         try:
-            logger.debug("Calling LLM model: %s", self.llm_model)
+            logger.info("Calling LLM: model=%s api_base=%s", self.llm_model, self.llm_api_base)
+            llm_start = time.perf_counter()
             response = litellm.completion(
                 model=self.llm_model,
                 messages=messages,
                 api_key=self.llm_api_key,
                 api_base=self.llm_api_base,
             )
-            logger.info("LLM call successful")
-            return response.choices[0].message.content
+            llm_elapsed = time.perf_counter() - llm_start
+            reply = response.choices[0].message.content
+            usage = getattr(response, 'usage', None)
+            logger.info(
+                "LLM call successful in %.2fs — response=%d chars, usage=%s",
+                llm_elapsed, len(reply) if reply else 0,
+                {"prompt": usage.prompt_tokens, "completion": usage.completion_tokens, "total": usage.total_tokens} if usage else "N/A",
+            )
+            return reply
         except Exception as e:
-            logger.exception("Error calling LLM")
+            logger.exception("Error calling LLM (model=%s)", self.llm_model)
 
             # Truncate the error message to avoid polluting output with massive HTML pages
             error_str = str(e)
