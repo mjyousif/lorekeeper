@@ -2,7 +2,7 @@ import logging
 import sqlite3
 import time
 import uuid
-from typing import Optional
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class AuthStorage:
             logger.error("Error creating pending pair for user %s: %s", user_id, e)
             raise e
 
-    def approve_pair(self, code: str) -> dict:
+    def approve_pair(self, code: str) -> dict[str, Any] | None:
         """Approves a pending pair request by code.
         Returns a dict with 'type' ('user' or 'chat') and the relevant IDs,
         or None if not found.

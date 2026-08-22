@@ -26,8 +26,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ALLOWED_USER_IDS = set(config.allowed_user_ids or [])
-ALLOWED_CHAT_IDS = set(config.allowed_chat_ids or [])
+ALLOWED_USER_IDS = set(config.allowed_user_ids or [])  # type: ignore
+ALLOWED_CHAT_IDS = set(config.allowed_chat_ids or [])  # type: ignore
 logger.info(
     "Authorization configured: %d allowed users, %d allowed chats",
     len(ALLOWED_USER_IDS),
@@ -118,20 +118,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             username,
             chat_id,
         )
-        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        await update.message.reply_text("❌ You are not authorized to use this bot.")  # type: ignore
         return
 
-    user_msg = update.message.text
+    user_msg = update.message.text  # type: ignore
 
     # In group chats, only respond if mentioned or replied to
-    chat_type = update.effective_chat.type
+    chat_type = update.effective_chat.type  # type: ignore
     if chat_type in ["group", "supergroup"]:
         bot = context.bot
         replied_to_bot = (
-            update.message.reply_to_message
-            and update.message.reply_to_message.from_user.id == bot.id
+            update.message.reply_to_message  # type: ignore
+            and update.message.reply_to_message.from_user.id == bot.id  # type: ignore
         )
-        mentioned = bot.username and f"@{bot.username}" in user_msg
+        mentioned = bot.username and f"@{bot.username}" in user_msg  # type: ignore
 
         if not (replied_to_bot or mentioned):
             logger.debug(
@@ -142,7 +142,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if bot.username:
-            user_msg = user_msg.replace(f"@{bot.username}", "").strip()
+            user_msg = user_msg.replace(f"@{bot.username}", "").strip()  # type: ignore
 
     if not user_msg:
         logger.debug("Empty message after processing, ignoring (chat=%s)", chat_id)
@@ -176,7 +176,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     wrapper = get_wrapper()
     logger.debug("[chat=%s] Loading session history from SQLite", chat_id)
-    messages = session_storage.get_history(chat_id)
+    messages = session_storage.get_history(chat_id)  # type: ignore
     logger.debug("[chat=%s] Loaded %d history messages", chat_id, len(messages))
 
     # Sync SQLite history into wrapper session so context is preserved on restart
@@ -224,7 +224,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         updated_history = updated_history[-20:]
         wrapper.sessions[session_id] = updated_history
-    session_storage.set_history(chat_id, updated_history)
+    session_storage.set_history(chat_id, updated_history)  # type: ignore
     logger.debug(
         "[chat=%s] Persisted %d history messages to SQLite",
         chat_id,
@@ -239,7 +239,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         text = text[:4046] + "...\n\n[Message truncated due to Telegram limit]"
 
-    await update.message.reply_text(text, entities=[e.to_dict() for e in entities])
+    await update.message.reply_text(text, entities=[e.to_dict() for e in entities])  # type: ignore
     logger.info("[chat=%s] Reply sent successfully", chat_id)
 
 
@@ -259,9 +259,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id,
             username,
         )
-        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        await update.message.reply_text("❌ You are not authorized to use this bot.")  # type: ignore
         return
-    await update.message.reply_text("Ask me anything about the lore!")
+    await update.message.reply_text("Ask me anything about the lore!")  # type: ignore
     logger.info("[chat=%s] /start response sent", chat_id)
 
 
@@ -276,10 +276,10 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    chat_type = chat.type
+    chat_type = chat.type  # type: ignore
     logger.info(
         "[chat=%s user=%s @%s] /pair command received (chat_type=%s)",
-        chat.id,
+        chat.id,  # type: ignore
         user.id,
         user.username,
         chat_type,
@@ -289,7 +289,7 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check if user is already authorized
         if is_user_authorized_only(user):
             logger.info("[user=%s] /pair: user already authorized", user.id)
-            await update.message.reply_text("✅ You are already authorized!")
+            await update.message.reply_text("✅ You are already authorized!")  # type: ignore
             return
 
         code = auth_storage.create_pending_pair(user.id)
@@ -299,39 +299,39 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Take this code to the terminal where the bot is running and run:\n"
             f"`chatter approve {code}`"
         )
-        await update.message.reply_markdown(msg)
+        await update.message.reply_markdown(msg)  # type: ignore
         return
 
     # In a group/channel chat
     if not is_user_authorized_only(user):
         logger.warning(
             "[chat=%s user=%s] /pair rejected: user not authorized to pair channels",
-            chat.id,
+            chat.id,  # type: ignore
             user.id,
         )
-        await update.message.reply_text("❌ Only authorized users can pair channels.")
+        await update.message.reply_text("❌ Only authorized users can pair channels.")  # type: ignore
         return
 
     if is_authorized(update):
         # We know the user is authorized, so if the overall chat is authorized, we are good.
         # But let's check specifically if the chat is authorized.
         if (
-            ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS
-        ) or auth_storage.is_chat_authorized(chat.id):
-            logger.info("[chat=%s] /pair: chat already authorized", chat.id)
-            await update.message.reply_text("✅ This chat is already authorized!")
+            ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS  # type: ignore
+        ) or auth_storage.is_chat_authorized(chat.id):  # type: ignore
+            logger.info("[chat=%s] /pair: chat already authorized", chat.id)  # type: ignore
+            await update.message.reply_text("✅ This chat is already authorized!")  # type: ignore
             return
 
-    code = auth_storage.create_pending_pair(user.id, chat.id)
+    code = auth_storage.create_pending_pair(user.id, chat.id)  # type: ignore
     logger.info(
-        "[chat=%s user=%s] Chat pairing code generated: %s", chat.id, user.id, code
+        "[chat=%s user=%s] Chat pairing code generated: %s", chat.id, user.id, code  # type: ignore
     )
     msg = (
         f"🔑 Chat pairing code is: `{code}`\n\n"
         "Take this code to the terminal where the bot is running and run:\n"
         f"`chatter approve {code}`"
     )
-    await update.message.reply_markdown(msg)
+    await update.message.reply_markdown(msg)  # type: ignore
 
 
 async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -353,7 +353,7 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id,
             username,
         )
-        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        await update.message.reply_text("❌ You are not authorized to use this bot.")  # type: ignore
         return
 
     chat_type = chat.type if chat else "private"
@@ -363,7 +363,7 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id,
             user_id,
         )
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore
             "❌ Only individually authorized users can clear group chat history."
         )
         return
@@ -376,7 +376,7 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session_id = str(chat_id)
         wrapper.sessions[session_id] = []
         logger.info("[chat=%s] History cleared by user=%s", chat_id, user_id)
-        await update.message.reply_text("🧹 Chat history has been cleared.")
+        await update.message.reply_text("🧹 Chat history has been cleared.")  # type: ignore
 
 
 def main():

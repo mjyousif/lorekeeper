@@ -99,7 +99,7 @@ class ChromaVectorStore(VectorStore):
                 """Initialize with a specific model."""
                 self.model = model
 
-            def __call__(self, input: list[str]) -> list[list[float]]:
+            def __call__(self, input: list[str]) -> Any:
                 """Encode input texts into embeddings."""
                 return self.model.encode(input).tolist()
 
@@ -118,7 +118,7 @@ class ChromaVectorStore(VectorStore):
     def insert(
         self,
         documents: list[str],
-        metadatas: Optional[list[dict]] = None,
+        metadatas: Optional[list[dict[str, Any]]] = None,
         ids: Optional[list[str]] = None,
     ) -> None:
         """Insert documents into Chroma.
@@ -148,7 +148,7 @@ class ChromaVectorStore(VectorStore):
         insert_start = time.perf_counter()
         self.collection.add(
             documents=documents,
-            metadatas=metadatas,
+            metadatas=metadatas,  # type: ignore
             ids=ids,
         )
         insert_elapsed = time.perf_counter() - insert_start
