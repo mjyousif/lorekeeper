@@ -14,6 +14,7 @@ def auth_storage(tmp_path):
     if db_path.exists():
         db_path.unlink()
 
+
 def test_init_db(auth_storage):
     assert os.path.exists(auth_storage.db_path)
     with sqlite3.connect(auth_storage.db_path) as con:
@@ -22,6 +23,7 @@ def test_init_db(auth_storage):
         assert "pending_pairs" in tables
         assert "authorized_users" in tables
         assert "authorized_chats" in tables
+
 
 def test_user_pairing_flow(auth_storage):
     user_id = 12345
@@ -46,6 +48,7 @@ def test_user_pairing_flow(auth_storage):
     result_again = auth_storage.approve_pair(code)
     assert result_again is None
 
+
 def test_chat_pairing_flow(auth_storage):
     user_id = 12345
     chat_id = -98765
@@ -69,6 +72,7 @@ def test_chat_pairing_flow(auth_storage):
 
     # Pending pair should be removed
     assert auth_storage.approve_pair(code) is None
+
 
 def test_approve_invalid_code(auth_storage):
     assert auth_storage.approve_pair("INVALID") is None

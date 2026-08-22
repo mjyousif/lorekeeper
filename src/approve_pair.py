@@ -7,6 +7,7 @@ from src.config import get_config
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+
 def main():
     if len(sys.argv) != 2:
         logger.error("Usage: uv run python -m src.approve_pair <CODE>")
@@ -26,13 +27,18 @@ def main():
             if result["type"] == "user":
                 logger.info("✅ Successfully authorized user %s", result["user_id"])
             elif result["type"] == "chat":
-                logger.info("✅ Successfully authorized chat %s (requested by user %s)", result["chat_id"], result["user_id"])
+                logger.info(
+                    "✅ Successfully authorized chat %s (requested by user %s)",
+                    result["chat_id"],
+                    result["user_id"],
+                )
         else:
             logger.error("❌ Invalid or expired pairing code: %s", code)
             sys.exit(1)
     except Exception as e:
         logger.error("❌ An error occurred while approving the code: %s", e)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

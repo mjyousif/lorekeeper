@@ -190,6 +190,7 @@ class TestLoreKeeperFileOperations:
 
     def test_read_file_not_found(self, wrapper, tmp_path):
         import re
+
         non_existent_file = str(tmp_path / "does_not_exist.txt")
         with pytest.raises(
             FileNotFoundError, match=re.escape(f"File not found: {non_existent_file}")

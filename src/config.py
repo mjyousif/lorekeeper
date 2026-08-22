@@ -96,7 +96,9 @@ class Config(BaseSettings):
 
         data = _expand_env_vars(data)  # Module-level function, no cls issue
         logger.info("Config loaded from %s (%s format)", path, path.suffix)
-        logger.debug("Config values: %s", {k: v for k, v in data.items() if k not in ('llm',)})
+        logger.debug(
+            "Config values: %s", {k: v for k, v in data.items() if k not in ("llm",)}
+        )
         return cls(**data)
 
 

@@ -86,7 +86,8 @@ class ChromaVectorStore(VectorStore):
         )
         logger.info(
             "ChromaVectorStore initializing: db_path=%s collection=%s",
-            self.db_path, self.collection_name,
+            self.db_path,
+            self.collection_name,
         )
 
         self.client = chromadb.PersistentClient(path=self.db_path)
@@ -110,7 +111,8 @@ class ChromaVectorStore(VectorStore):
         )
         logger.info(
             "ChromaVectorStore ready: %d existing documents in collection '%s'",
-            self.collection.count(), self.collection_name,
+            self.collection.count(),
+            self.collection_name,
         )
 
     def insert(
@@ -138,7 +140,11 @@ class ChromaVectorStore(VectorStore):
                 if not m:
                     raise ValueError("metadata dicts must be non-empty")
 
-        logger.debug("Inserting %d documents into collection '%s'", len(documents), self.collection_name)
+        logger.debug(
+            "Inserting %d documents into collection '%s'",
+            len(documents),
+            self.collection_name,
+        )
         insert_start = time.perf_counter()
         self.collection.add(
             documents=documents,
@@ -154,7 +160,9 @@ class ChromaVectorStore(VectorStore):
         if n_results == 0:
             logger.debug("Query skipped: collection is empty")
             return []
-        logger.debug("Querying collection '%s' for %d results", self.collection_name, n_results)
+        logger.debug(
+            "Querying collection '%s' for %d results", self.collection_name, n_results
+        )
         query_start = time.perf_counter()
         results = self.collection.query(
             query_texts=[query_text],
@@ -162,7 +170,9 @@ class ChromaVectorStore(VectorStore):
         )
         query_elapsed = time.perf_counter() - query_start
         docs = results["documents"][0] if results["documents"] else []
-        logger.debug("Query completed in %.3fs, returned %d documents", query_elapsed, len(docs))
+        logger.debug(
+            "Query completed in %.3fs, returned %d documents", query_elapsed, len(docs)
+        )
         return docs
 
     def clear(self) -> None:

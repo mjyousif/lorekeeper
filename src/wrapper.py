@@ -36,7 +36,9 @@ class LoreKeeper:
                 format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             )
         else:
-            logging.getLogger().setLevel(getattr(logging, self.config.log_level.upper(), logging.INFO))
+            logging.getLogger().setLevel(
+                getattr(logging, self.config.log_level.upper(), logging.INFO)
+            )
 
         # Core components
         raw_files = files if files is not None else self.config.files
@@ -56,12 +58,18 @@ class LoreKeeper:
         )
         logger.debug(
             "TextChunker configured: chunk_size=%d overlap=%d threshold=%d",
-            self.config.chunk_size, self.config.overlap, self.config.chunk_threshold,
+            self.config.chunk_size,
+            self.config.overlap,
+            self.config.chunk_threshold,
         )
 
         self.db_path = self.config.db_path
         self.vector_store = vector_store or ChromaVectorStore(db_path=self.db_path)
-        logger.info("VectorStore initialized at %s (%d existing documents)", self.db_path, self.vector_store.count())
+        logger.info(
+            "VectorStore initialized at %s (%d existing documents)",
+            self.db_path,
+            self.vector_store.count(),
+        )
 
         # Context and character
         self.context = ""
@@ -111,7 +119,8 @@ class LoreKeeper:
                     self.context = f.read().strip()
                 logger.info(
                     "Loaded context from %s (%d chars)",
-                    self.config.context_file, len(self.context),
+                    self.config.context_file,
+                    len(self.context),
                 )
             except Exception as e:
                 logger.error(
@@ -126,7 +135,8 @@ class LoreKeeper:
                     self.character = f.read().strip()
                 logger.info(
                     "Loaded character from %s (%d chars)",
-                    self.config.character_file, len(self.character),
+                    self.config.character_file,
+                    len(self.character),
                 )
             except Exception as e:
                 logger.error(
@@ -179,7 +189,9 @@ class LoreKeeper:
             self.document_loader._manifest = current_manifest
             return
 
-        logger.info("Loading and embedding %d files...", len(self.document_loader.files))
+        logger.info(
+            "Loading and embedding %d files...", len(self.document_loader.files)
+        )
         embed_start = time.perf_counter()
         self.vector_store.clear()
         total_chunks = 0
@@ -196,15 +208,24 @@ class LoreKeeper:
                         ids=ids,
                     )
                     total_chunks += len(chunks)
-                    logger.debug("Embedded %d chunks from %s (%d chars)", len(chunks), file_path, len(content))
+                    logger.debug(
+                        "Embedded %d chunks from %s (%d chars)",
+                        len(chunks),
+                        file_path,
+                        len(content),
+                    )
                 else:
-                    logger.debug("No chunks produced from %s (%d chars)", file_path, len(content))
+                    logger.debug(
+                        "No chunks produced from %s (%d chars)", file_path, len(content)
+                    )
             except Exception as e:
                 logger.error("Error processing file %s: %s", file_path, e)
         embed_elapsed = time.perf_counter() - embed_start
         logger.info(
             "Finished embedding: %d total chunks from %d files in %.2fs",
-            total_chunks, len(self.document_loader.files), embed_elapsed,
+            total_chunks,
+            len(self.document_loader.files),
+            embed_elapsed,
         )
 
         try:
@@ -216,24 +237,33 @@ class LoreKeeper:
 
     def get_relevant_context(self, message: str, n_results: int = 3) -> list[str]:
         """Query the vector store to get context relevant to the message."""
-        logger.debug("Querying vector store for: %s (n_results=%d)", message[:80], n_results)
+        logger.debug(
+            "Querying vector store for: %s (n_results=%d)", message[:80], n_results
+        )
         query_start = time.perf_counter()
         results = self.vector_store.query(message, n_results=n_results)
         query_elapsed = time.perf_counter() - query_start
         logger.info(
             "Vector query returned %d results in %.3fs",
-            len(results), query_elapsed,
+            len(results),
+            query_elapsed,
         )
         return results
 
     def chat(self, session_id: str, message: str) -> dict:
         """Handle chat: retrieve context, manage history, call LLM, return response."""
-        logger.info("[session=%s] chat() called with message (%d chars)", session_id, len(message))
+        logger.info(
+            "[session=%s] chat() called with message (%d chars)",
+            session_id,
+            len(message),
+        )
         chat_start = time.perf_counter()
 
         # 0. Rebuild index if data files changed
         if self.document_loader.needs_rebuild():
-            logger.info("[session=%s] Data changes detected, rebuilding index...", session_id)
+            logger.info(
+                "[session=%s] Data changes detected, rebuilding index...", session_id
+            )
             self._rebuild_index()
 
         # 1. Retrieve relevant context
@@ -244,7 +274,9 @@ class LoreKeeper:
             self.sessions[session_id] = []
             logger.debug("[session=%s] Created new session", session_id)
         history = self.sessions[session_id]
-        logger.debug("[session=%s] Current history: %d messages", session_id, len(history))
+        logger.debug(
+            "[session=%s] Current history: %d messages", session_id, len(history)
+        )
 
         # 3. Ask ChatManager for response
         assistant_message = self.chat_manager.generate_response(
@@ -257,14 +289,20 @@ class LoreKeeper:
             # 4. Update history (only if no error)
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": assistant_message})
-            logger.debug("[session=%s] History updated to %d messages", session_id, len(history))
+            logger.debug(
+                "[session=%s] History updated to %d messages", session_id, len(history)
+            )
         else:
-            logger.warning("[session=%s] LLM returned error, history not updated", session_id)
+            logger.warning(
+                "[session=%s] LLM returned error, history not updated", session_id
+            )
 
         chat_elapsed = time.perf_counter() - chat_start
         logger.info(
             "[session=%s] chat() completed in %.2fs (response=%d chars)",
-            session_id, chat_elapsed, len(assistant_message),
+            session_id,
+            chat_elapsed,
+            len(assistant_message),
         )
         return {"message": assistant_message, "context": context}
 

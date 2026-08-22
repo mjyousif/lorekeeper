@@ -6,6 +6,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class AuthStorage:
     """Handles storing and retrieving dynamic authorization data using SQLite."""
 
@@ -49,7 +50,7 @@ class AuthStorage:
             with sqlite3.connect(self.db_path) as con:
                 con.execute(
                     "INSERT INTO pending_pairs (code, user_id, chat_id, created_at) VALUES (?, ?, ?, ?)",
-                    (code, user_id, chat_id, now)
+                    (code, user_id, chat_id, now),
                 )
             return code
         except Exception as e:
@@ -64,7 +65,9 @@ class AuthStorage:
         code = code.upper().strip()
         try:
             with sqlite3.connect(self.db_path) as con:
-                cur = con.execute("SELECT user_id, chat_id FROM pending_pairs WHERE code = ?", (code,))
+                cur = con.execute(
+                    "SELECT user_id, chat_id FROM pending_pairs WHERE code = ?", (code,)
+                )
                 row = cur.fetchone()
                 if not row:
                     return None
@@ -76,7 +79,7 @@ class AuthStorage:
                     # It's a channel/group pairing
                     con.execute(
                         "INSERT OR REPLACE INTO authorized_chats (chat_id, approved_by, approved_at) VALUES (?, ?, ?)",
-                        (chat_id, user_id, now)
+                        (chat_id, user_id, now),
                     )
                     con.execute("DELETE FROM pending_pairs WHERE code = ?", (code,))
                     return {"type": "chat", "user_id": user_id, "chat_id": chat_id}
@@ -84,7 +87,7 @@ class AuthStorage:
                     # It's a user pairing
                     con.execute(
                         "INSERT OR REPLACE INTO authorized_users (user_id, approved_at) VALUES (?, ?)",
-                        (user_id, now)
+                        (user_id, now),
                     )
                     con.execute("DELETE FROM pending_pairs WHERE code = ?", (code,))
                     return {"type": "user", "user_id": user_id}
@@ -96,7 +99,9 @@ class AuthStorage:
         """Checks if a user is dynamically authorized."""
         try:
             with sqlite3.connect(self.db_path) as con:
-                cur = con.execute("SELECT 1 FROM authorized_users WHERE user_id = ?", (user_id,))
+                cur = con.execute(
+                    "SELECT 1 FROM authorized_users WHERE user_id = ?", (user_id,)
+                )
                 return cur.fetchone() is not None
         except Exception as e:
             logger.error("Error checking auth for user %d: %s", user_id, e)
@@ -106,7 +111,9 @@ class AuthStorage:
         """Checks if a chat is dynamically authorized."""
         try:
             with sqlite3.connect(self.db_path) as con:
-                cur = con.execute("SELECT 1 FROM authorized_chats WHERE chat_id = ?", (chat_id,))
+                cur = con.execute(
+                    "SELECT 1 FROM authorized_chats WHERE chat_id = ?", (chat_id,)
+                )
                 return cur.fetchone() is not None
         except Exception as e:
             logger.error("Error checking auth for chat %d: %s", chat_id, e)

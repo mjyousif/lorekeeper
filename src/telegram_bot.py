@@ -87,6 +87,7 @@ def is_authorized(update: Update) -> bool:
     logger.debug("Authorization denied for user=%s chat=%s", user_id, chat_id)
     return False
 
+
 def is_user_authorized_only(user) -> bool:
     """Check if a user (not chat) is authorized."""
     if not user:
@@ -113,7 +114,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         logger.warning(
             "Unauthorized message rejected: user=%s (@%s) chat=%s",
-            user_id, username, chat_id,
+            user_id,
+            username,
+            chat_id,
         )
         await update.message.reply_text("❌ You are not authorized to use this bot.")
         return
@@ -133,7 +136,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not (replied_to_bot or mentioned):
             logger.debug(
                 "Ignoring group message (not mentioned/replied): chat=%s user=%s",
-                chat_id, user_id,
+                chat_id,
+                user_id,
             )
             return
 
@@ -146,7 +150,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     logger.info(
         "[chat=%s user=%s @%s] Received message (%d chars): %s",
-        chat_id, user_id, username, len(user_msg), user_msg[:120],
+        chat_id,
+        user_id,
+        username,
+        len(user_msg),
+        user_msg[:120],
     )
 
     # --- Continuous typing indicator ---
@@ -175,7 +183,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session_id = str(chat_id)
     if session_id not in wrapper.sessions:
         wrapper.sessions[session_id] = messages
-        logger.debug("[chat=%s] Initialized new wrapper session from SQLite history", chat_id)
+        logger.debug(
+            "[chat=%s] Initialized new wrapper session from SQLite history", chat_id
+        )
 
     try:
         llm_start = time.perf_counter()
@@ -185,7 +195,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         assistant_msg = response["message"]
         logger.info(
             "[chat=%s] LoreKeeper response received in %.2fs (%d chars)",
-            chat_id, llm_elapsed, len(assistant_msg),
+            chat_id,
+            llm_elapsed,
+            len(assistant_msg),
         )
     except Exception:
         logger.exception("[chat=%s] Error in LoreKeeper.chat()", chat_id)
@@ -207,17 +219,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(updated_history) > 20:
         logger.debug(
             "[chat=%s] Trimming session history from %d to 20 messages",
-            chat_id, len(updated_history),
+            chat_id,
+            len(updated_history),
         )
         updated_history = updated_history[-20:]
         wrapper.sessions[session_id] = updated_history
     session_storage.set_history(chat_id, updated_history)
-    logger.debug("[chat=%s] Persisted %d history messages to SQLite", chat_id, len(updated_history))
+    logger.debug(
+        "[chat=%s] Persisted %d history messages to SQLite",
+        chat_id,
+        len(updated_history),
+    )
 
     if len(text) > 4096:
         logger.warning(
             "[chat=%s] Response truncated from %d to 4096 chars for Telegram",
-            chat_id, len(text),
+            chat_id,
+            len(text),
         )
         text = text[:4046] + "...\n\n[Message truncated due to Telegram limit]"
 
@@ -230,12 +248,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     chat_id = update.effective_chat.id if update.effective_chat else None
     username = update.effective_user.username if update.effective_user else "unknown"
-    logger.info("[chat=%s user=%s @%s] /start command received", chat_id, user_id, username)
+    logger.info(
+        "[chat=%s user=%s @%s] /start command received", chat_id, user_id, username
+    )
 
     if not is_authorized(update):
         logger.warning(
             "[chat=%s user=%s @%s] Unauthorized /start rejected",
-            chat_id, user_id, username,
+            chat_id,
+            user_id,
+            username,
         )
         await update.message.reply_text("❌ You are not authorized to use this bot.")
         return
@@ -249,13 +271,18 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
 
     if not user:
-        logger.warning("[chat=%s] /pair command with no user, ignoring", chat.id if chat else None)
+        logger.warning(
+            "[chat=%s] /pair command with no user, ignoring", chat.id if chat else None
+        )
         return
 
     chat_type = chat.type
     logger.info(
         "[chat=%s user=%s @%s] /pair command received (chat_type=%s)",
-        chat.id, user.id, user.username, chat_type,
+        chat.id,
+        user.id,
+        user.username,
+        chat_type,
     )
 
     if chat_type == "private":
@@ -279,7 +306,8 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_user_authorized_only(user):
         logger.warning(
             "[chat=%s user=%s] /pair rejected: user not authorized to pair channels",
-            chat.id, user.id,
+            chat.id,
+            user.id,
         )
         await update.message.reply_text("❌ Only authorized users can pair channels.")
         return
@@ -287,13 +315,17 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_authorized(update):
         # We know the user is authorized, so if the overall chat is authorized, we are good.
         # But let's check specifically if the chat is authorized.
-        if (ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS) or auth_storage.is_chat_authorized(chat.id):
+        if (
+            ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS
+        ) or auth_storage.is_chat_authorized(chat.id):
             logger.info("[chat=%s] /pair: chat already authorized", chat.id)
             await update.message.reply_text("✅ This chat is already authorized!")
             return
 
     code = auth_storage.create_pending_pair(user.id, chat.id)
-    logger.info("[chat=%s user=%s] Chat pairing code generated: %s", chat.id, user.id, code)
+    logger.info(
+        "[chat=%s user=%s] Chat pairing code generated: %s", chat.id, user.id, code
+    )
     msg = (
         f"🔑 Chat pairing code is: `{code}`\n\n"
         "Take this code to the terminal where the bot is running and run:\n"
@@ -310,12 +342,16 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = chat.id if chat else None
     username = user.username if user else "unknown"
 
-    logger.info("[chat=%s user=%s @%s] /clear command received", chat_id, user_id, username)
+    logger.info(
+        "[chat=%s user=%s @%s] /clear command received", chat_id, user_id, username
+    )
 
     if not is_authorized(update):
         logger.warning(
             "[chat=%s user=%s @%s] Unauthorized /clear rejected",
-            chat_id, user_id, username,
+            chat_id,
+            user_id,
+            username,
         )
         await update.message.reply_text("❌ You are not authorized to use this bot.")
         return
@@ -324,9 +360,12 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_type in ["group", "supergroup"] and not is_user_authorized_only(user):
         logger.warning(
             "[chat=%s user=%s] /clear rejected: user not authorized to clear group chat history",
-            chat_id, user_id,
+            chat_id,
+            user_id,
         )
-        await update.message.reply_text("❌ Only individually authorized users can clear group chat history.")
+        await update.message.reply_text(
+            "❌ Only individually authorized users can clear group chat history."
+        )
         return
 
     # Clear SQLite history

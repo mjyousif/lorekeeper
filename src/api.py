@@ -101,7 +101,9 @@ async def chat_completions(
     user_message = request.messages[-1].content
     logger.info(
         "API chat request: model=%s messages=%d last_msg=%d chars",
-        request.model, len(request.messages), len(user_message),
+        request.model,
+        len(request.messages),
+        len(user_message),
     )
     logger.debug("User message: %s", user_message[:200])
 
@@ -131,7 +133,9 @@ async def chat_completions(
 
     logger.info(
         "API request completed in %.2fs: response=%d chars, context_chunks=%d",
-        request_elapsed, len(llm_message), len(retrieved_context),
+        request_elapsed,
+        len(llm_message),
+        len(retrieved_context),
     )
     return response
 

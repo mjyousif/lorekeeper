@@ -47,7 +47,11 @@ class SessionStorage:
                 )
                 row = cur.fetchone()
                 messages = json.loads(row[0]) if row else []
-                logger.debug("Retrieved %d history messages for chat_id %d", len(messages), chat_id)
+                logger.debug(
+                    "Retrieved %d history messages for chat_id %d",
+                    len(messages),
+                    chat_id,
+                )
                 return messages
         except Exception as e:
             logger.error("Error reading history for chat_id %d: %s", chat_id, e)
@@ -66,6 +70,8 @@ class SessionStorage:
                     "INSERT OR REPLACE INTO history (chat_id, messages) VALUES (?, ?)",
                     (chat_id, json.dumps(messages)),
                 )
-            logger.debug("Saved %d history messages for chat_id %d", len(messages), chat_id)
+            logger.debug(
+                "Saved %d history messages for chat_id %d", len(messages), chat_id
+            )
         except Exception as e:
             logger.error("Error saving history for chat_id %d: %s", chat_id, e)
