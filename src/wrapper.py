@@ -306,6 +306,47 @@ class LoreKeeper:
         )
         return {"message": assistant_message, "context": context}
 
+    def chat_stateless(self, messages: list[dict]) -> dict:
+        """Handle chat statelessly (OpenAI API style) without internal sessions.
+        
+        Args:
+            messages: Full conversation history from the client.
+        """
+        if not messages:
+            return {"message": "No messages provided.", "context": []}
+            
+        user_message = messages[-1].get("content", "")
+        history = messages[:-1]
+
+        logger.info(
+            "chat_stateless() called with %d total messages (last message %d chars)",
+            len(messages),
+            len(user_message),
+        )
+        chat_start = time.perf_counter()
+
+        # 0. Rebuild index if data files changed
+        if self.document_loader.needs_rebuild():
+            logger.info("Data changes detected, rebuilding index...")
+            self._rebuild_index()
+
+        # 1. Retrieve relevant context based on the last message
+        context = self.get_relevant_context(user_message)
+
+        # 2. Ask ChatManager for response
+        assistant_message = self.chat_manager.generate_response(
+            message=user_message,
+            retrieved_context=context,
+            history=history,
+        )
+
+        chat_elapsed = time.perf_counter() - chat_start
+        logger.info(
+            "chat_stateless() completed in %.2fs (response=%d chars)",
+            chat_elapsed,
+            len(assistant_message),
+        )
+        return {"message": assistant_message, "context": context}
 
 if __name__ == "__main__":
     print("Starting LoreKeeper example...")

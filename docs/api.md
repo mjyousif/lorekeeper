@@ -10,7 +10,7 @@ http://localhost:8000
 
 ## `POST /v1/chat/completions`
 
-Generates a response for a given chat conversation. The request and response schemas mirror OpenAI's API.
+Generates a response for a given chat conversation. The request and response schemas mirror OpenAI's API. This endpoint is completely **stateless**; clients must provide the full conversation history in the `messages` array for every request to maintain context.
 
 ### Request Body
 

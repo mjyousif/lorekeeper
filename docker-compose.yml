@@ -1,8 +1,8 @@
 services:
-  lorekeeper:
-    # Update this to match your actual GitHub username or organization if different
+  lorekeeper-bot:
     image: ghcr.io/${GITHUB_ACTOR:-mjyousif}/lorekeeper:latest
-    container_name: lorekeeper
+    container_name: lorekeeper-bot
+    command: ["uv", "run", "python", "-m", "src.telegram_bot"]
     restart: unless-stopped
     env_file:
       - .env
@@ -11,7 +11,38 @@ services:
       - TELEGRAM_SESSION_DB=/.db/sessions.db
     volumes:
       - lorekeeper-db:/.db
-      # Mount the local data folder so the container can read character.md & lore files
+      - ./data:/app/data
+
+  lorekeeper-api:
+    image: ghcr.io/${GITHUB_ACTOR:-mjyousif}/lorekeeper:latest
+    container_name: lorekeeper-api
+    command: ["uv", "run", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - lorekeeper-db:/.db
+      - ./data:/app/data
+
+  lorekeeper-ui:
+    image: ghcr.io/${GITHUB_ACTOR:-mjyousif}/lorekeeper:latest
+    container_name: lorekeeper-ui
+    command: ["uv", "run", "python", "-m", "src.gradio_app"]
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - lorekeeper-api
+    volumes:
+      - lorekeeper-db:/.db
       - ./data:/app/data
 
   ollama:

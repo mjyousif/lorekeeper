@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "RAG system with vector storage abstraction"
 requires-python = ">=3.11"
 
+
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
@@ -18,6 +19,9 @@ dependencies = [
     "python-telegram-bot>=22.6",
     "telegramify-markdown>=1.1.0",
 ]
+
+[project.scripts]
+lorekeeper = "src.cli:main"
 
 [dependency-groups]
 ui = ["gradio>=4.0.0"]
@@ -57,3 +61,10 @@ exclude = ["tests/"]
 [tool.bandit]
 exclude_dirs = ["tests"]
 skips = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

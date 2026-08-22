@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Chatter CLI - Manage the RAG chatbot system.
+LoreKeeper CLI - Manage the RAG chatbot system.
 
 Usage:
-  chatter start [--restart] [api|telegram|ui|all]  Start one or all services in background
-  chatter stop [api|telegram|ui|all]   Stop services
-  chatter logs [api|telegram]          Follow logs (default: both)
-  chatter status                       Show which services are running
-  chatter purge-logs                   Clear all log files before starting
-  chatter approve <CODE>               Approve a pairing request code
-  chatter help                         Show this help
+  lorekeeper start [--restart] [api|telegram|ui|all]  Start one or all services in background
+  lorekeeper stop [api|telegram|ui|all]   Stop services
+  lorekeeper logs [api|telegram|ui]       Follow logs (default: api and telegram)
+  lorekeeper status                       Show which services are running
+  lorekeeper purge-logs                   Clear all log files before starting
+  lorekeeper approve <CODE>               Approve a pairing request code
+  lorekeeper help                         Show this help
 """
 
 import os
@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).parent.parent
 PID_DIR = ROOT / ".run"
 LOG_DIR = ROOT / ".logs"
 PID_DIR.mkdir(exist_ok=True)
@@ -93,30 +93,26 @@ def is_running(service: str) -> bool:
         return False
 
 
-def wait_for_service(service: str, timeout: int = 300) -> bool:
+def wait_for_service(service: str, timeout: int = 60) -> bool:
     """Wait for a service's health check endpoint to be ready."""
     url = SERVICES[service].get("ready_url")
     if not url:
-        logger.debug(
-            f"Service {service} has no health check URL, assuming ready if running"
-        )
         return True  # No health check defined, assume ready if running
 
-    logger.info(
-        f"Waiting for service {service} to become ready (timeout: {timeout}s)..."
-    )
+    logger.info(f"[{service}] Waiting for service to become ready...")
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
             resp = requests.get(url, timeout=2)
             if resp.status_code == 200:
-                logger.info(f"Service {service} is ready (health check passed)")
+                logger.info(f"[{service}] Service is ready!")
                 return True
-        except requests.RequestException as e:
-            logger.warning(f"Health check failed for {service}: {e}")
+        except requests.RequestException:
+            # Just ignore connection errors while booting
+            pass
         time.sleep(1)
 
-    logger.error(f"Service {service} failed to become ready within {timeout}s")
+    logger.error(f"[{service}] Failed to become ready within {timeout}s")
     return False
 
 
@@ -179,7 +175,7 @@ def start_service(service: str, restart: bool = False):
     logger.info(f"[{service}] Starting {' '.join(cmd)}")
     with open(log_path, "a") as log_file:
         kwargs = {
-            "cwd": ROOT.parent,
+            "cwd": ROOT,
             "env": env,
             "stdout": log_file,
             "stderr": subprocess.STDOUT,
@@ -270,15 +266,31 @@ def main(argv: list[str] | None = None):
         if "all" in services:
             services = list(SERVICES.keys())
 
-        # Purge logs before starting
-        purge_logs()
+        if restart:
+            services_to_start = services.copy()
+            # Stop them first so purge_logs can delete the files
+            for s in services_to_start:
+                if s in SERVICES:
+                    stop_service(s)
+            purge_logs()
+            for s in services_to_start:
+                if s in SERVICES:
+                    start_service(s, restart=False)
+        else:
+            purge_logs()
+            for s in services:
+                if s in SERVICES:
+                    start_service(s, restart=False)
 
-        for s in services:
-            if s not in SERVICES:
-                logger.error(f"Unknown service: {s}")
-                print(__doc__)
-                return 1
-            start_service(s, restart=restart)
+        print("\n" + "="*45)
+        print(" LoreKeeper is running! ")
+        if "ui" in services and is_running("ui"):
+            print(" [UI]       http://127.0.0.1:7860")
+        if "api" in services and is_running("api"):
+            print(" [API]      http://127.0.0.1:8000")
+        if "telegram" in services and is_running("telegram"):
+            print(" [Telegram] Active")
+        print("="*45 + "\n")
 
     elif command == "stop":
         services = args if args else ["all"]
@@ -323,7 +335,7 @@ def main(argv: list[str] | None = None):
 
         code = args[0]
         # Run the approve_pair module directly
-        subprocess.run(["uv", "run", "python", "-m", "src.approve_pair", code], cwd=ROOT.parent)
+        subprocess.run(["uv", "run", "python", "-m", "src.approve_pair", code], cwd=ROOT)
 
     else:
         logger.error(f"Unknown command: {command}")

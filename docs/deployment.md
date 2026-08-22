@@ -4,13 +4,18 @@ LoreKeeper is containerized using Docker, allowing for reproducible and sandboxe
 
 ## Standard Deployment (Cloud LLMs)
 
-If you are using a cloud provider like OpenAI, Anthropic, or OpenRouter, you only need to deploy the primary `lorekeeper` container.
+If you are using a cloud provider like OpenAI, Anthropic, or OpenRouter, you can deploy the core LoreKeeper services (Telegram Bot, API, and UI).
 
 1. Ensure your `.env` is configured with your API keys (e.g., `LLM_MODEL=openrouter/...`, `LLM_API_KEY=sk-...`).
 2. Run the compose stack:
    ```shell
    docker compose up -d
    ```
+
+This will spin up three containers:
+*   `lorekeeper-bot`: The Telegram bot integration.
+*   `lorekeeper-api`: The FastAPI backend exposed on port `8000`.
+*   `lorekeeper-ui`: The Gradio testing interface exposed on port `7860`.
 
 ### Volumes
 The standard deployment mounts two volumes:
@@ -22,7 +27,7 @@ The standard deployment mounts two volumes:
 If you prefer maximum privacy and want to run the LLM locally on your own hardware, the `docker-compose.yml` includes an `ollama` profile.
 
 This will launch:
-1. The LoreKeeper container.
+1. The three LoreKeeper containers (`bot`, `api`, `ui`).
 2. A local Ollama server.
 3. A sidecar container (`ollama-pull-model`) that automatically downloads the model specified in your `.env`.
 

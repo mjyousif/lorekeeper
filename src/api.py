@@ -107,12 +107,12 @@ async def chat_completions(
     )
     logger.debug("User message: %s", user_message[:200])
 
-    # For now, use a placeholder session. In production, derive from auth/headers.
-    session_id = "api_session_placeholder"
+    # Convert Pydantic models to standard dictionaries
+    message_dicts = [{"role": msg.role, "content": msg.content} for msg in request.messages]
 
     try:
         request_start = time.perf_counter()
-        wrapper_response = rag.chat(session_id=session_id, message=user_message)
+        wrapper_response = rag.chat_stateless(messages=message_dicts)
         request_elapsed = time.perf_counter() - request_start
     except Exception as e:
         logger.exception("Error in LoreKeeper during API request")
