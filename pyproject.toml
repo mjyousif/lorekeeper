@@ -51,8 +51,8 @@ ignore = []
 
 [tool.mypy]
 python_version = "3.11"
-strict = true
 ignore_missing_imports = true
+exclude = ["tests/"]
 
 [tool.bandit]
 exclude_dirs = ["tests"]

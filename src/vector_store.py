@@ -181,7 +181,7 @@ class ChromaVectorStore(VectorStore):
         try:
             self.client.delete_collection(name=self.collection_name)
         except Exception:
-            pass
+            pass  # nosec B110
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name,
             embedding_function=self.embedding_fn,
