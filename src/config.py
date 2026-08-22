@@ -13,12 +13,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 try:
     import yaml
 except ImportError:
-    yaml = None
+    yaml = None  # type: ignore
 
 try:
     import toml
 except ImportError:
-    toml = None
+    toml = None  # type: ignore
+
 
 import json
 
@@ -58,6 +59,8 @@ class Config(BaseSettings):
                 ]
             else:
                 self.allowed_user_ids = None
+        elif isinstance(self.allowed_user_ids, int):
+            self.allowed_user_ids = [self.allowed_user_ids]
         elif isinstance(self.allowed_user_ids, int):
             self.allowed_user_ids = [self.allowed_user_ids]
 
