@@ -308,13 +308,13 @@ class LoreKeeper:
 
     def chat_stateless(self, messages: list[dict]) -> dict:
         """Handle chat statelessly (OpenAI API style) without internal sessions.
-        
+
         Args:
             messages: Full conversation history from the client.
         """
         if not messages:
             return {"message": "No messages provided.", "context": []}
-            
+
         user_message = messages[-1].get("content", "")
         history = messages[:-1]
 
@@ -347,6 +347,7 @@ class LoreKeeper:
             len(assistant_message),
         )
         return {"message": assistant_message, "context": context}
+
 
 if __name__ == "__main__":
     print("Starting LoreKeeper example...")

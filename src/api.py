@@ -108,7 +108,9 @@ async def chat_completions(
     logger.debug("User message: %s", user_message[:200])
 
     # Convert Pydantic models to standard dictionaries
-    message_dicts = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+    message_dicts = [
+        {"role": msg.role, "content": msg.content} for msg in request.messages
+    ]
 
     try:
         request_start = time.perf_counter()

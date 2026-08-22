@@ -12,14 +12,15 @@ Usage:
   lorekeeper help                         Show this help
 """
 
-import os
-import sys
-import subprocess
-import time
-import signal
 import logging
-import requests
+import os
+import signal
+import subprocess
+import sys
+import time
 from pathlib import Path
+
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -207,8 +208,16 @@ def stop_service(service: str):
         logger.info(f"[{service}] Not running (no PID file)")
         return
     try:
-        os.kill(pid, signal.SIGTERM)
-        logger.info(f"[{service}] Stopped (PID {pid})")
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            logger.info(f"[{service}] Stopped process tree for PID {pid}")
+        else:
+            os.kill(pid, signal.SIGTERM)
+            logger.info(f"[{service}] Stopped (PID {pid})")
         SERVICES[service]["pid"].unlink(missing_ok=True)
     except OSError:
         logger.warning(f"[{service}] Process {pid} not found; removing stale PID file")
@@ -282,7 +291,7 @@ def main(argv: list[str] | None = None):
                 if s in SERVICES:
                     start_service(s, restart=False)
 
-        print("\n" + "="*45)
+        print("\n" + "=" * 45)
         print(" LoreKeeper is running! ")
         if "ui" in services and is_running("ui"):
             print(" [UI]       http://127.0.0.1:7860")
@@ -290,7 +299,7 @@ def main(argv: list[str] | None = None):
             print(" [API]      http://127.0.0.1:8000")
         if "telegram" in services and is_running("telegram"):
             print(" [Telegram] Active")
-        print("="*45 + "\n")
+        print("=" * 45 + "\n")
 
     elif command == "stop":
         services = args if args else ["all"]
@@ -335,7 +344,9 @@ def main(argv: list[str] | None = None):
 
         code = args[0]
         # Run the approve_pair module directly
-        subprocess.run(["uv", "run", "python", "-m", "src.approve_pair", code], cwd=ROOT)
+        subprocess.run(
+            ["uv", "run", "python", "-m", "src.approve_pair", code], cwd=ROOT
+        )
 
     else:
         logger.error(f"Unknown command: {command}")

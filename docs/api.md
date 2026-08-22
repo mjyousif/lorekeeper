@@ -16,7 +16,7 @@ Generates a response for a given chat conversation. The request and response sch
 
 ```json
 {
-  "model": "gpt-4o", 
+  "model": "gpt-4o",
   "messages": [
     {
       "role": "user",
