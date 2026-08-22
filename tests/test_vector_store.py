@@ -1,11 +1,12 @@
 """Test the VectorStore abstraction and Chroma implementation."""
 
-import tempfile
 import os
-import pytest
+import tempfile
 from pathlib import Path
 
-from src.vector_store import VectorStore, ChromaVectorStore
+import pytest
+
+from src.vector_store import ChromaVectorStore, VectorStore
 
 
 class TestVectorStoreInterface:

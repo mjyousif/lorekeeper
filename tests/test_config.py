@@ -1,5 +1,7 @@
-import pytest
 import json
+
+import pytest
+
 from src.config import Config, _expand_env_vars, get_config
 
 

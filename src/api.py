@@ -1,14 +1,14 @@
+import logging
 import time
 import uuid
-import logging
 from functools import lru_cache
-
-from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel, Field
 from typing import Annotated, List, Optional
 
-from src.wrapper import LoreKeeper
+from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
 from src.config import Config, get_config
+from src.wrapper import LoreKeeper
 
 config = get_config()
 logging.basicConfig(

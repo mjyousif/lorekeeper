@@ -13,8 +13,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import gradio as gr
-from src.wrapper import LoreKeeper
+
 from src.config import get_config
+from src.wrapper import LoreKeeper
 
 cfg = get_config()  # Single load, cached, falls back to defaults if no config.yaml
 

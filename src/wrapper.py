@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import os
-import logging
-import uuid
 import json
+import logging
+import os
 import time
+import uuid
 
-from .vector_store import VectorStore, ChromaVectorStore
+from .chat_manager import ChatManager
 from .config import Config, get_config
 from .document_loader import DocumentLoader
 from .text_chunker import TextChunker
-from .chat_manager import ChatManager
+from .vector_store import ChromaVectorStore, VectorStore
 
 logger = logging.getLogger(__name__)
 

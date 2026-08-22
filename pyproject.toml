@@ -28,8 +28,32 @@ dev = [
     "black",
     "ruff",
     "reportlab>=4.5.1",
+    "mypy>=2.3.1",
+    "bandit>=1.9.4",
+    "pre-commit>=4.6.2",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["integration: marks tests as integration tests (deselect with '-m not integration')"]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = []

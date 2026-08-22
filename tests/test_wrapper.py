@@ -1,12 +1,13 @@
 """Test the LoreKeeper class."""
 
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
-from src.wrapper import LoreKeeper
-from src.vector_store import VectorStore
+import pytest
+
 from src.config import Config
+from src.vector_store import VectorStore
+from src.wrapper import LoreKeeper
 
 
 def make_config(**kwargs) -> Config:

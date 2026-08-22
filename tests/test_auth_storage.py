@@ -1,7 +1,10 @@
 import os
-import pytest
 import sqlite3
+
+import pytest
+
 from src.auth_storage import AuthStorage
+
 
 @pytest.fixture
 def auth_storage(tmp_path):

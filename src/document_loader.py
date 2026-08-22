@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import os
 import logging
+import os
+
 from pypdf import PdfReader
 
 logger = logging.getLogger(__name__)

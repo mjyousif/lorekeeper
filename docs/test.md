@@ -38,10 +38,8 @@ In addition to testing, LoreKeeper uses the following tools to maintain code qua
 *   **Mypy**: Static type checking.
 *   **Bandit**: Security vulnerability scanning.
 
-To run these tools:
+These tools are configured as `pre-commit` hooks. They will run automatically when you commit code.
+To run these tools manually against all files:
 ```shell
-uv run black src tests
-uv run ruff check src tests
-uv run mypy src tests
-uv run bandit -c pyproject.toml -r src
+uv run pre-commit run --all-files
 ```

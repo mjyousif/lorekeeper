@@ -1,9 +1,9 @@
-import uuid
 import logging
 import time
+import uuid
 from abc import ABC, abstractmethod
-from typing import Any, Optional
 from pathlib import Path
+from typing import Any, Optional
 
 try:
     import chromadb
