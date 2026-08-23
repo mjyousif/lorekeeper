@@ -25,3 +25,24 @@ For detailed documentation, please refer to the `docs/` folder:
 * **If you create a new documentation file, you MUST update this file (`AGENTS.md`) to include a pointer to it and explain when to use it.**
 
 Always keep the documentation in sync with the codebase.
+
+## Strict Development Rules for Agents
+
+To prevent broken builds, CI failures, and wasted time, all AI agents working in this repository **MUST** adhere to the following rules:
+
+### 1. NEVER Bypass Pre-Commit Hooks
+* **DO NOT** use `git commit --no-verify`. This is strictly forbidden.
+* All commits must successfully pass the repository's pre-commit hooks (`black`, `ruff format`, `ruff check`, `mypy`, `bandit`).
+* If a pre-commit hook fails—even if the failure is in a file you didn't originally touch, or is related to trailing whitespaces/EOF—you must fix the issue properly before committing.
+* Local hook bypasses simply push failures to the GitHub Actions CI pipeline, which is unacceptable.
+
+### 2. Cross-Platform Awareness
+* The local development environment is often Windows, but the GitHub Actions CI pipeline runs on **Linux** (`ubuntu-latest`).
+* Code must be platform-agnostic.
+* When writing OS-specific code (e.g., Windows `subprocess` flags like `CREATE_NO_WINDOW`), you must account for `mypy` running on Linux in CI. Use `# type: ignore[attr-defined]` on platform-specific attributes to prevent Linux CI type-checking failures.
+
+### 3. Testing and Execution
+* Use `uv` to manage the environment and run tools.
+* To avoid Windows script path canonicalization issues, run tests explicitly as a module: `uv run python -m pytest`.
+* Always run tests before committing.
+* Ensure code is explicitly formatted (`uv run ruff format .`) and passes linters (`uv run ruff check .`, `uv run python -m mypy src`) before finalizing work.
