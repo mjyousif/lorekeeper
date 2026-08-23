@@ -1,6 +1,6 @@
 # Application Design
 
-LoreKeeper is designed as a modular, lightweight wrapper around Large Language Models (LLMs) that enriches interactions with deep lore (via Retrieval-Augmented Generation) and character personas. 
+LoreKeeper is designed as a modular, lightweight wrapper around Large Language Models (LLMs) that enriches interactions with deep lore (via Retrieval-Augmented Generation) and character personas.
 
 ## Core Architecture
 
@@ -15,12 +15,13 @@ The system follows a domain-driven structure separated into the following compon
 
 LoreKeeper exposes multiple interfaces for user interaction:
 *   **FastAPI Backend (`src/interfaces/api.py`)**: An OpenAI-compliant `/v1/chat/completions` REST API endpoint.
-*   **Telegram Bot (`src/interfaces/telegram_bot.py`)**: A bot integration allowing users to chat directly via Telegram.
+*   **Telegram Bot (`src/interfaces/telegram_bot.py`)**: A bot integration allowing users to chat directly via Telegram. Includes Text-to-Speech (TTS) integration via `gtts`.
 *   **Gradio App (`src/interfaces/gradio_app.py`)**: A web-based UI for testing and chatting.
 *   **CLI (`src/interfaces/cli.py`)**: A command line application.
 
-## Future Agentic Design
+## Agentic Design
 
-The architecture is currently being evolved to support an **Agentic Loop**. 
-*   `src/core/chat_manager.py` will be extended to support LLM Tool Calling (function calling).
-*   When a tool call is requested by the model (e.g., "generate image"), the execution loop will pause, execute the tool locally, feed the result back to the LLM, and yield a final character-driven response.
+LoreKeeper implements an **Agentic Loop** to provide the LLM with dynamic tool-calling capabilities.
+*   `src/core/chat_manager.py` manages an iterative execution loop supporting LLM Tool Calling (function calling).
+*   When a tool call is requested by the model (e.g., retrieving lore via the `memory_search` tool), the execution loop pauses, executes the corresponding tool locally, feeds the result back to the LLM as a tool message, and continues the loop.
+*   This allows the character to autonomously decide when it needs more context from the deep lore or perform external actions before returning a final response.

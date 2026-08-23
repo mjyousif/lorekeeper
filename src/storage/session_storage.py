@@ -2,7 +2,8 @@ import contextlib
 import json
 import logging
 import sqlite3
-import contextlib
+
+
 @contextlib.contextmanager
 def _get_db(db_path):
     con = sqlite3.connect(db_path)
@@ -11,6 +12,7 @@ def _get_db(db_path):
             yield con
     finally:
         con.close()
+
 
 logger = logging.getLogger(__name__)
 

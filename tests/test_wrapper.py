@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.core.config import Config
-from src.rag.vector_store import VectorStore
 from src.core.wrapper import LoreKeeper
+from src.rag.vector_store import VectorStore
 
 
 def make_config(**kwargs) -> Config:
@@ -350,6 +350,7 @@ class TestLoreKeeperChat:
         with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Test response"
+            mock_choice.message.tool_calls = None
             mock_completion.return_value.choices = [mock_choice]
 
             response = wrapper.chat(session_id="new_session", message="Hello")
@@ -357,34 +358,42 @@ class TestLoreKeeperChat:
         assert "new_session" in wrapper.sessions
         assert response["message"] == "Test response"
 
-    def test_chat_retrieves_context(self, wrapper):
+    def test_chat_retrieves_context_via_tool(self, wrapper):
+        # We simulate the LLM returning a tool call for memory_search, then returning a normal response
         with patch("src.core.chat_manager.litellm.completion") as mock_completion:
-            mock_choice = MagicMock()
-            mock_choice.message.content = "Response"
-            mock_completion.return_value.choices = [mock_choice]
+            tool_call = MagicMock()
+            tool_call.id = "call_123"
+            tool_call.function.name = "memory_search"
+            import json
+            tool_call.function.arguments = json.dumps({"query": "What is photosynthesis?"})
+            
+            tool_choice = MagicMock()
+            tool_choice.message.content = None
+            tool_choice.message.tool_calls = [tool_call]
+            tool_choice.message.model_dump.return_value = {
+                "role": "assistant",
+                "tool_calls": [{"id": "call_123", "type": "function", "function": {"name": "memory_search", "arguments": tool_call.function.arguments}}]
+            }
+            
+            final_choice = MagicMock()
+            final_choice.message.content = "Photosynthesis is the process."
+            final_choice.message.tool_calls = None
+            
+            mock_completion.side_effect = [
+                MagicMock(choices=[tool_choice]),
+                MagicMock(choices=[final_choice])
+            ]
 
             wrapper.chat(session_id="test", message="What is photosynthesis?")
 
-            messages = mock_completion.call_args[1]["messages"]
-            system_msg = messages[0]
-            assert system_msg["role"] == "system"
-            assert "Context:" in system_msg["content"]
-            assert (
-                "Photosynthesis" in system_msg["content"]
-                or "photosynthesis" in system_msg["content"]
-            )
-
-    def test_chat_uses_relevant_context_for_query(self, wrapper):
-        with patch.object(wrapper, "get_relevant_context") as mock_get:
-            mock_get.return_value = ["Mocked context"]
-
-            with patch("src.core.chat_manager.litellm.completion") as mock_completion:
-                mock_choice = MagicMock()
-                mock_choice.message.content = "Reply"
-                mock_completion.return_value.choices = [mock_choice]
-
-                wrapper.chat(session_id="test", message="User query")
-                mock_get.assert_called_once_with("User query")
+            assert mock_completion.call_count == 2
+            messages_second_call = mock_completion.call_args_list[1][1]["messages"]
+            
+            # Check that the tool result was added to the history
+            tool_msg = messages_second_call[-1]
+            assert tool_msg["role"] == "tool"
+            assert tool_msg["name"] == "memory_search"
+            assert "Photosynthesis is the process by which plants convert sunlight into energy." in tool_msg["content"]
 
     def test_chat_manages_conversation_history(self, wrapper):
         session_id = "history_test"
@@ -392,6 +401,7 @@ class TestLoreKeeperChat:
         with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply 1"
+            mock_choice.message.tool_calls = None
             mock_completion.return_value.choices = [mock_choice]
 
             wrapper.chat(session_id=session_id, message="First message")

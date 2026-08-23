@@ -35,6 +35,7 @@ class Config(BaseSettings):
     db_path: str = "db"
     vector_store: dict[str, Any] | None = None
     llm: dict[str, Any] | None = None
+    tts: dict[str, Any] | None = None
     telegram: dict[str, Any] | None = None
     chunk_size: int = 1000
     overlap: int = 200

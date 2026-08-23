@@ -28,6 +28,11 @@ llm:
   api_base: ${LLM_API_BASE}
   max_context_size: 64000
 
+# TTS configuration
+tts:
+  engine: ${TTS_ENGINE:gtts} # Options: 'gtts' (free google TTS), 'gemini' (google genai)
+  gemini_api_key: ${GEMINI_API_KEY}
+
 # Telegram bot configuration
 telegram:
   bot_token: ${TELEGRAM_BOT_TOKEN}

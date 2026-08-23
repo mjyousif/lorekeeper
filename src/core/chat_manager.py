@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class ChatManager:
-    """Encapsulates LLM interaction and conversation history management."""
+    """Encapsulates LLM interaction, conversation history management, and agentic tool loop."""
 
     def __init__(
         self,
@@ -19,8 +19,10 @@ class ChatManager:
         max_context_size: int = 64000,
         context: str = "",
         character: str = "",
+        tools: list[dict] | None = None,
+        tool_implementations: dict | None = None,
     ):
-        """Initialize the ChatManager with LLM configuration.
+        """Initialize the ChatManager with LLM configuration and tools.
 
         Args:
             llm_model: The LLM model to use (e.g., 'gpt-3.5-turbo').
@@ -29,6 +31,8 @@ class ChatManager:
             max_context_size: The maximum allowed tokens in the context window.
             context: Static system context string.
             character: Static persona or character instruction string.
+            tools: List of tool schemas.
+            tool_implementations: Dictionary mapping tool names to callable implementations.
         """
         self.llm_model = llm_model
         self.llm_api_key = llm_api_key
@@ -36,13 +40,16 @@ class ChatManager:
         self.max_context_size = max_context_size
         self.context = context
         self.character = character
+        self.tools = tools or []
+        self.tool_implementations = tool_implementations or {}
         logger.info(
-            "ChatManager initialized: model=%s api_base=%s max_context=%d context_len=%d character_len=%d",
+            "ChatManager initialized: model=%s api_base=%s max_context=%d context_len=%d character_len=%d tools=%d",
             self.llm_model,
             self.llm_api_base,
             self.max_context_size,
             len(self.context),
             len(self.character),
+            len(self.tools),
         )
 
     def generate_response(
@@ -51,149 +58,117 @@ class ChatManager:
         retrieved_context: list[str],
         history: list[dict],
     ) -> str:
-        """Construct messages, enforce limits, and call the LLM.
+        """Construct messages, enforce limits, and call the LLM in an agentic loop.
 
         Args:
             message: The user's new message.
-            retrieved_context: Relevant text chunks from vector store.
+            retrieved_context: (Deprecated) Relevant text chunks. Now relies on tools.
             history: Conversation history list containing role/content dicts.
 
         Returns:
             The assistant's generated message or an error/placeholder message.
         """
-        context_str = (
-            "\n---\n".join(retrieved_context)
-            if retrieved_context
-            else "No relevant context found."
+        system_content = (
+            f"Character:\n{self.character}\n\n---\n\n"
+            f"Key Context:\n{self.context}\n\n---\n\n"
+            "You must fully embody the Character described above. "
+            "If you need more information to answer the user's question, use the available tools to search the lore memory. "
+            "If the context does not contain the answer, do not guess or make up information. "
+            "Simply state that you do not know, while remaining in character. "
+            "CRITICAL: Your final response MUST be under 3 sentences. Be extremely brief.\n\n"
         )
-        logger.debug(
-            "Building prompt: %d retrieved chunks, context_str=%d chars",
-            len(retrieved_context),
-            len(context_str),
-        )
+        
+        # Include retrieved_context for backward compatibility if provided
+        if retrieved_context:
+            context_str = "\n---\n".join(retrieved_context)
+            system_content += f"Retrieved Context:\n{context_str}"
 
-        model_name = self.llm_model or "gpt-3.5-turbo"
-        try:
-            char_tokens = (
-                litellm.token_counter(model=model_name, text=self.character)
-                if self.character
-                else 0
-            )
-            context_file_tokens = (
-                litellm.token_counter(model=model_name, text=self.context)
-                if self.context
-                else 0
-            )
-            retrieved_context_tokens = (
-                litellm.token_counter(model=model_name, text=context_str)
-                if context_str
-                else 0
-            )
-            history_tokens = (
-                litellm.token_counter(model=model_name, messages=history)
-                if history
-                else 0
-            )
-            user_message_tokens = (
-                litellm.token_counter(model=model_name, text=message) if message else 0
-            )
-            logger.debug(
-                "Token counts (pre-trimming): character=%d, context_files=%d, retrieved_context=%d, history=%d, user_message=%d",
-                char_tokens,
-                context_file_tokens,
-                retrieved_context_tokens,
-                history_tokens,
-                user_message_tokens,
-            )
-        except Exception as e:
-            logger.warning("Failed to count tokens for prompt components: %s", e)
+        system_msg = {"role": "system", "content": system_content}
+        logger.debug("System prompt length: %d chars", len(system_content))
 
-        system_msg = {
-            "role": "system",
-            "content": (
-                f"Character:\n{self.character}\n\n---\n\n"
-                f"Key Context:\n{self.context}\n\n---\n\n"
-                "You must fully embody the Character described above. "
-                "Use the following retrieved context to answer the user's question. "
-                "If the context does not contain the answer, do not guess or make up information. "
-                "Simply state that you do not know, while remaining in character. "
-                "CRITICAL: Your response MUST be under 3 sentences. Be extremely brief.\n\n"
-                f"Retrieved Context:\n{context_str}"
-            ),
-        }
-        logger.debug("System prompt length: %d chars", len(system_msg["content"]))
-
-        # Enforce max context size
-        # We loop until the token count of the combined messages is under the limit, or history runs out.
-        try:
-            original_history_len = len(history)
-            while len(history) > 0:
-                messages = (
-                    [system_msg] + history + [{"role": "user", "content": message}]
-                )
-                current_tokens = litellm.token_counter(
-                    model=self.llm_model, messages=messages
-                )
-                if current_tokens <= self.max_context_size:
-                    break
-                # If too large, remove the oldest message in history
-                history.pop(0)
-            trimmed = original_history_len - len(history)
-            if trimmed > 0:
-                logger.info(
-                    "Trimmed %d messages from history to fit context window (was %d tokens)",
-                    trimmed,
-                    current_tokens if "current_tokens" in dir() else -1,
-                )
-            logger.debug(
-                "Final message count: %d (system + %d history + user)",
-                len(history) + 2,
-                len(history),
-            )
-        except Exception as e:
-            logger.warning("Failed to count tokens or truncate history: %s", e)
-
+        # We append the new message to a local copy of history for the tool loop
         messages = [system_msg] + history + [{"role": "user", "content": message}]
 
-        # Call LLM
         if not self.llm_api_key:
             logger.warning("LLM API key not configured; returning placeholder message")
             return "LLM not configured: set OPENROUTER_API_KEY environment variable or provide llm.api_key in config."
 
-        try:
-            logger.info(
-                "Calling LLM: model=%s api_base=%s", self.llm_model, self.llm_api_base
-            )
-            llm_start = time.perf_counter()
-            response = litellm.completion(
-                model=self.llm_model,
-                messages=messages,
-                api_key=self.llm_api_key,
-                api_base=self.llm_api_base,
-            )
-            llm_elapsed = time.perf_counter() - llm_start
-            reply = response.choices[0].message.content
-            usage = getattr(response, "usage", None)
-            logger.info(
-                "LLM call successful in %.2fs — response=%d chars, usage=%s",
-                llm_elapsed,
-                len(reply) if reply else 0,
-                (
-                    {
-                        "prompt": usage.prompt_tokens,
-                        "completion": usage.completion_tokens,
-                        "total": usage.total_tokens,
-                    }
-                    if usage
-                    else "N/A"
-                ),
-            )
-            return reply
-        except Exception as e:
-            logger.exception("Error calling LLM (model=%s)", self.llm_model)
+        max_steps = 5
+        for step in range(max_steps):
+            # Trim history if needed
+            try:
+                while len(messages) > 1:
+                    current_tokens = litellm.token_counter(
+                        model=self.llm_model or "gpt-3.5-turbo", messages=messages
+                    )
+                    if current_tokens <= self.max_context_size:
+                        break
+                    # If too large, remove the oldest non-system message
+                    messages.pop(1)
+            except Exception as e:
+                logger.warning("Failed to count tokens or truncate history: %s", e)
 
-            # Truncate the error message to avoid polluting output with massive HTML pages
-            error_str = str(e)
-            if len(error_str) > 1000:
-                error_str = error_str[:1000] + "... [truncated]"
-            return f"Error calling LLM: {error_str}"
+            try:
+                logger.info(
+                    "Calling LLM (step %d/%d): model=%s api_base=%s", 
+                    step + 1, max_steps, self.llm_model, self.llm_api_base
+                )
+                llm_start = time.perf_counter()
+                
+                kwargs = {
+                    "model": self.llm_model,
+                    "messages": messages,
+                    "api_key": self.llm_api_key,
+                    "api_base": self.llm_api_base,
+                }
+                if self.tools:
+                    kwargs["tools"] = self.tools
+
+                response = litellm.completion(**kwargs)
+                
+                llm_elapsed = time.perf_counter() - llm_start
+                response_message = response.choices[0].message
+                
+                if response_message.tool_calls:
+                    logger.info("LLM requested %d tool calls", len(response_message.tool_calls))
+                    messages.append(response_message.model_dump())
+                    
+                    for tool_call in response_message.tool_calls:
+                        tool_name = tool_call.function.name
+                        tool_args = tool_call.function.arguments
+                        logger.debug("Executing tool: %s with args: %s", tool_name, tool_args)
+                        
+                        tool_result = "Tool not implemented"
+                        if tool_name in self.tool_implementations:
+                            try:
+                                import json
+                                parsed_args = json.loads(tool_args)
+                                result = self.tool_implementations[tool_name](**parsed_args)
+                                tool_result = str(result)
+                            except Exception as e:
+                                logger.error("Error executing tool %s: %s", tool_name, e)
+                                tool_result = f"Error: {e}"
+                        
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": tool_name,
+                            "content": tool_result
+                        })
+                    continue # Continue the loop to let the LLM use the tool results
+                else:
+                    reply = response_message.content
+                    logger.info(
+                        "LLM call successful in %.2fs — response=%d chars",
+                        llm_elapsed,
+                        len(reply) if reply else 0,
+                    )
+                    return reply
+            except Exception as e:
+                logger.exception("Error calling LLM (model=%s)", self.llm_model)
+                error_str = str(e)
+                if len(error_str) > 1000:
+                    error_str = error_str[:1000] + "... [truncated]"
+                return f"Error calling LLM: {error_str}"
+                
+        return "Error: Exceeded maximum tool execution steps."

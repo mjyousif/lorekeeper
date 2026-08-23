@@ -34,6 +34,11 @@ All LLM configuration falls under the `llm` dictionary (or environment variables
 *   **`llm.api_key`**: API key for cloud providers. (Leave blank or omit for local Ollama).
 *   **`llm.api_base`**: Base URL, required when using local Ollama (e.g., `http://localhost:11434`) or custom OpenAI-compatible endpoints.
 
+### TTS Settings
+Text-to-Speech settings are configured under the `tts` dictionary.
+*   **`tts.engine`**: The TTS engine to use. (Default: `gtts`, Options: `gtts`, `gemini`)
+*   **`tts.gemini_api_key`**: API key for Google Gemini if using the `gemini` engine.
+
 ### Telegram Bot Settings
 Settings for `telegram_bot.py`.
 *   **`telegram.bot_token`**: Your Telegram bot token provided by BotFather.

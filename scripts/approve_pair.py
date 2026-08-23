@@ -1,8 +1,8 @@
 import logging
 import sys
 
-from src.storage.auth_storage import AuthStorage
 from src.core.config import get_config
+from src.storage.auth_storage import AuthStorage
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)

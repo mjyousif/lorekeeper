@@ -6,11 +6,12 @@ import os
 import time
 import uuid
 
-from .chat_manager import ChatManager
-from .config import Config, get_config
 from src.rag.document_loader import DocumentLoader
 from src.rag.text_chunker import TextChunker
 from src.rag.vector_store import ChromaVectorStore, VectorStore
+
+from .chat_manager import ChatManager
+from .config import Config, get_config
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,31 @@ class LoreKeeper:
         self.character = ""
         self._load_context_character()
 
+        # Define agent tools
+        self.tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "memory_search",
+                    "description": "Search the deep lore memory for relevant context. Use this when you need more information about the world, history, or characters.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query to find relevant information."
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            }
+        ]
+        
+        self.tool_implementations = {
+            "memory_search": self._memory_search_impl
+        }
+
         # Chat and history management
         llm_cfg = self.config.llm or {}
         self.chat_manager = ChatManager(
@@ -85,6 +111,8 @@ class LoreKeeper:
             max_context_size=int(llm_cfg.get("max_context_size", 64000)),
             context=self.context,
             character=self.character,
+            tools=self.tools,
+            tool_implementations=self.tool_implementations,
         )
 
         # Initialize vector store
@@ -95,6 +123,13 @@ class LoreKeeper:
 
         init_elapsed = time.perf_counter() - init_start
         logger.info("LoreKeeper fully initialized in %.2fs", init_elapsed)
+
+    def _memory_search_impl(self, query: str) -> str:
+        """Tool implementation for memory search."""
+        results = self.get_relevant_context(query)
+        if not results:
+            return "No relevant context found."
+        return "\n---\n".join(results)
 
     @property
     def files(self) -> list[str]:
@@ -251,7 +286,7 @@ class LoreKeeper:
         return results
 
     def chat(self, session_id: str, message: str) -> dict:
-        """Handle chat: retrieve context, manage history, call LLM, return response."""
+        """Handle chat: manage history, call LLM, return response."""
         logger.info(
             "[session=%s] chat() called with message (%d chars)",
             session_id,
@@ -266,10 +301,7 @@ class LoreKeeper:
             )
             self._rebuild_index()
 
-        # 1. Retrieve relevant context
-        context = self.get_relevant_context(message)
-
-        # 2. Manage conversation history
+        # 1. Manage conversation history
         if session_id not in self.sessions:
             self.sessions[session_id] = []
             logger.debug("[session=%s] Created new session", session_id)
@@ -278,15 +310,15 @@ class LoreKeeper:
             "[session=%s] Current history: %d messages", session_id, len(history)
         )
 
-        # 3. Ask ChatManager for response
+        # 2. Ask ChatManager for response
         assistant_message = self.chat_manager.generate_response(
             message=message,
-            retrieved_context=context,
+            retrieved_context=[],
             history=history,
         )
 
         if not assistant_message.startswith("Error calling LLM"):
-            # 4. Update history (only if no error)
+            # 3. Update history (only if no error)
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": assistant_message})
             logger.debug(
@@ -304,7 +336,7 @@ class LoreKeeper:
             chat_elapsed,
             len(assistant_message),
         )
-        return {"message": assistant_message, "context": context}
+        return {"message": assistant_message, "context": []}
 
     def chat_stateless(self, messages: list[dict]) -> dict:
         """Handle chat statelessly (OpenAI API style) without internal sessions.
@@ -330,13 +362,10 @@ class LoreKeeper:
             logger.info("Data changes detected, rebuilding index...")
             self._rebuild_index()
 
-        # 1. Retrieve relevant context based on the last message
-        context = self.get_relevant_context(user_message)
-
-        # 2. Ask ChatManager for response
+        # 1. Ask ChatManager for response
         assistant_message = self.chat_manager.generate_response(
             message=user_message,
-            retrieved_context=context,
+            retrieved_context=[],
             history=history,
         )
 
@@ -346,7 +375,7 @@ class LoreKeeper:
             chat_elapsed,
             len(assistant_message),
         )
-        return {"message": assistant_message, "context": context}
+        return {"message": assistant_message, "context": []}
 
 
 if __name__ == "__main__":

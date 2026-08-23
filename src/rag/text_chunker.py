@@ -41,7 +41,8 @@ class TextChunker:
         if len(text) <= self.chunk_threshold:
             logger.debug(
                 "Text (%d chars) under threshold (%d), returning as single chunk",
-                len(text), self.chunk_threshold,
+                len(text),
+                self.chunk_threshold,
             )
             return [text]
 
@@ -53,6 +54,9 @@ class TextChunker:
             start += self.chunk_size - self.overlap
         logger.debug(
             "Chunked %d chars into %d chunks (size=%d, overlap=%d)",
-            len(text), len(chunks), self.chunk_size, self.overlap,
+            len(text),
+            len(chunks),
+            self.chunk_size,
+            self.overlap,
         )
         return chunks

@@ -13,10 +13,10 @@ from telegram.ext import (
 )
 from telegramify_markdown import convert
 
-from src.storage.auth_storage import AuthStorage
 from src.core.config import get_config
-from src.storage.session_storage import SessionStorage
 from src.core.wrapper import LoreKeeper
+from src.storage.auth_storage import AuthStorage
+from src.storage.session_storage import SessionStorage
 
 config = get_config()
 
@@ -38,6 +38,24 @@ telegram_cfg = config.telegram or {}
 DB_PATH = telegram_cfg.get("session_db", "sessions.db")
 session_storage = SessionStorage(db_path=DB_PATH)
 auth_storage = AuthStorage(db_path=DB_PATH)
+
+# Initialize TTS settings table
+import sqlite3
+def _init_tts_db():
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute("CREATE TABLE IF NOT EXISTS tts_settings (chat_id INTEGER PRIMARY KEY, enabled BOOLEAN)")
+
+def is_tts_enabled(chat_id: int) -> bool:
+    with sqlite3.connect(DB_PATH) as con:
+        cur = con.execute("SELECT enabled FROM tts_settings WHERE chat_id=?", (chat_id,))
+        row = cur.fetchone()
+        return bool(row[0]) if row else False
+
+def set_tts_enabled(chat_id: int, enabled: bool):
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute("INSERT OR REPLACE INTO tts_settings (chat_id, enabled) VALUES (?, ?)", (chat_id, enabled))
+
+_init_tts_db()
 
 TELEGRAM_BOT_TOKEN = telegram_cfg.get("bot_token")
 
@@ -239,8 +257,70 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         text = text[:4046] + "...\n\n[Message truncated due to Telegram limit]"
 
-    await update.message.reply_text(text, entities=[e.to_dict() for e in entities])  # type: ignore
-    logger.info("[chat=%s] Reply sent successfully", chat_id)
+    tts_cfg = config.tts or {}
+    tts_engine = tts_cfg.get("engine", "gtts").lower()
+
+    if is_tts_enabled(chat_id):
+        try:
+            import io
+            logger.info("[chat=%s] Generating TTS audio using engine: %s", chat_id, tts_engine)
+            audio_fp = io.BytesIO()
+
+            if tts_engine == "gemini":
+                from google import genai
+                from google.genai import types
+                
+                api_key = tts_cfg.get("gemini_api_key")
+                if not api_key:
+                    raise ValueError("gemini_api_key is required in tts config for gemini engine")
+                
+                client = genai.Client(api_key=api_key)
+                gen_resp = client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=assistant_msg,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name="Aoede"
+                                )
+                            )
+                        )
+                    )
+                )
+                # Find the audio part
+                audio_bytes = None
+                for part in gen_resp.candidates[0].content.parts:
+                    if part.inline_data:
+                        audio_bytes = part.inline_data.data
+                        break
+                
+                if not audio_bytes:
+                    raise RuntimeError("No audio data returned from Gemini")
+                
+                audio_fp.write(audio_bytes)
+                audio_fp.seek(0)
+                
+            else:
+                # Default to gTTS
+                from gtts import gTTS
+                tts = gTTS(text=assistant_msg, lang="en", slow=False)
+                tts.write_to_fp(audio_fp)
+                audio_fp.seek(0)
+            
+            await update.message.reply_voice(
+                voice=audio_fp, 
+                caption=text,
+                caption_entities=[e.to_dict() for e in entities]
+            )
+            logger.info("[chat=%s] Voice reply sent successfully", chat_id)
+        except Exception as e:
+            logger.exception("[chat=%s] TTS failed, falling back to text: %s", chat_id, e)
+            await update.message.reply_text(text, entities=[e.to_dict() for e in entities])  # type: ignore
+    else:
+        await update.message.reply_text(text, entities=[e.to_dict() for e in entities])  # type: ignore
+        logger.info("[chat=%s] Reply sent successfully", chat_id)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -317,7 +397,9 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # But let's check specifically if the chat is authorized.
         if (
             ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS  # type: ignore
-        ) or auth_storage.is_chat_authorized(chat.id):  # type: ignore
+        ) or auth_storage.is_chat_authorized(
+            chat.id
+        ):  # type: ignore
             logger.info("[chat=%s] /pair: chat already authorized", chat.id)  # type: ignore
             await update.message.reply_text("✅ This chat is already authorized!")  # type: ignore
             return
@@ -379,6 +461,39 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🧹 Chat history has been cleared.")  # type: ignore
 
 
+async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle the /tts command to toggle Text-to-Speech."""
+    user = update.effective_user
+    chat = update.effective_chat
+    user_id = user.id if user else None
+    chat_id = chat.id if chat else None
+    username = user.username if user else "unknown"
+
+    logger.info("[chat=%s user=%s @%s] /tts command received", chat_id, user_id, username)
+
+    if not is_authorized(update):
+        logger.warning("[chat=%s user=%s @%s] Unauthorized /tts rejected", chat_id, user_id, username)
+        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        return
+
+    chat_type = chat.type if chat else "private"
+    if chat_type in ["group", "supergroup"] and not is_user_authorized_only(user):
+        logger.warning("[chat=%s user=%s] /tts rejected: user not authorized to change settings in group chat", chat_id, user_id)
+        await update.message.reply_text("❌ Only individually authorized users can toggle TTS in group chats.")
+        return
+        
+    args = context.args
+    if not args or args[0].lower() not in ["on", "off"]:
+        current_state = "ON" if is_tts_enabled(chat_id) else "OFF"
+        await update.message.reply_text(f"🗣️ TTS is currently {current_state}.\nUsage: /tts on | /tts off")
+        return
+
+    enable = args[0].lower() == "on"
+    set_tts_enabled(chat_id, enable)
+    state_str = "enabled" if enable else "disabled"
+    await update.message.reply_text(f"🗣️ TTS has been {state_str} for this chat.")
+
+
 def main():
     """Start the Telegram bot."""
     logger.info("Starting Telegram bot (token ending ...%s)", TELEGRAM_BOT_TOKEN[-6:])
@@ -386,8 +501,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("pair", pair))
     app.add_handler(CommandHandler("clear", clear_history))
+    app.add_handler(CommandHandler("tts", tts_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("Handlers registered: /start, /pair, /clear, message")
+    logger.info("Handlers registered: /start, /pair, /clear, /tts, message")
     logger.info("Bot polling started — waiting for messages...")
     app.run_polling()
 

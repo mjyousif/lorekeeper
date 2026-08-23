@@ -18,6 +18,8 @@ dependencies = [
     "pydantic-settings",
     "python-telegram-bot>=22.6",
     "telegramify-markdown>=1.1.0",
+    "gtts>=2.5.4",
+    "google-genai>=2.19.0",
 ]
 
 [project.scripts]

@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.interfaces.api import app, get_lorekeeper
 from src.core.wrapper import LoreKeeper
+from src.interfaces.api import app, get_lorekeeper
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def test_read_root(client):
 
 def test_chat_completions_success(client):
     mock_rag = MagicMock(spec=LoreKeeper)
-    mock_rag.chat.return_value = {
+    mock_rag.chat_stateless.return_value = {
         "message": "Mocked LLM response",
         "context": ["mocked context"],
     }
@@ -39,8 +39,8 @@ def test_chat_completions_success(client):
     response = client.post("/v1/chat/completions", json=request_data)
 
     # Assert dependency override worked and mock was called
-    mock_rag.chat.assert_called_once_with(
-        session_id="api_session_placeholder", message="Hello"
+    mock_rag.chat_stateless.assert_called_once_with(
+        messages=[{"role": "user", "content": "Hello"}]
     )
 
     assert response.status_code == 200
@@ -55,7 +55,7 @@ def test_chat_completions_success(client):
 
 def test_chat_completions_no_context(client):
     mock_rag = MagicMock(spec=LoreKeeper)
-    mock_rag.chat.return_value = {
+    mock_rag.chat_stateless.return_value = {
         "message": "Mocked LLM response",
         "context": [],  # Context could be empty
     }
@@ -85,7 +85,7 @@ def test_chat_completions_empty_messages(client):
 
 def test_chat_completions_rag_exception(client):
     mock_rag = MagicMock(spec=LoreKeeper)
-    mock_rag.chat.side_effect = Exception("Something went wrong")
+    mock_rag.chat_stateless.side_effect = Exception("Something went wrong")
 
     app.dependency_overrides[get_lorekeeper] = lambda: mock_rag
 
