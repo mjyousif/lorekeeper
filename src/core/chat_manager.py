@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class ChatManager:
-    """Encapsulates LLM interaction, conversation history management, and agentic tool loop."""
+    """Encapsulates LLM interaction, conversation history management,
+    and agentic tool loop.
+    """
 
     def __init__(
         self,
@@ -32,7 +34,8 @@ class ChatManager:
             context: Static system context string.
             character: Static persona or character instruction string.
             tools: List of tool schemas.
-            tool_implementations: Dictionary mapping tool names to callable implementations.
+            tool_implementations: Dictionary mapping tool names to callable
+                                  implementations.
         """
         self.llm_model = llm_model
         self.llm_api_key = llm_api_key
@@ -43,7 +46,8 @@ class ChatManager:
         self.tools = tools or []
         self.tool_implementations = tool_implementations or {}
         logger.info(
-            "ChatManager initialized: model=%s api_base=%s max_context=%d context_len=%d character_len=%d tools=%d",
+            "ChatManager initialized: model=%s api_base=%s max_context=%d "
+            "context_len=%d character_len=%d tools=%d",
             self.llm_model,
             self.llm_api_base,
             self.max_context_size,
@@ -72,12 +76,15 @@ class ChatManager:
             f"Character:\n{self.character}\n\n---\n\n"
             f"Key Context:\n{self.context}\n\n---\n\n"
             "You must fully embody the Character described above. "
-            "If you need more information to answer the user's question, use the available tools to search the lore memory. "
-            "If the context does not contain the answer, do not guess or make up information. "
+            "If you need more information to answer the user's question, "
+            "use the available tools to search the lore memory. "
+            "If the context does not contain the answer, do not guess or "
+            "make up information. "
             "Simply state that you do not know, while remaining in character. "
-            "CRITICAL: Your final response MUST be under 3 sentences. Be extremely brief.\n\n"
+            "CRITICAL: Your final response MUST be under 3 sentences. "
+            "Be extremely brief.\n\n"
         )
-        
+
         # Include retrieved_context for backward compatibility if provided
         if retrieved_context:
             context_str = "\n---\n".join(retrieved_context)
@@ -91,7 +98,10 @@ class ChatManager:
 
         if not self.llm_api_key:
             logger.warning("LLM API key not configured; returning placeholder message")
-            return "LLM not configured: set OPENROUTER_API_KEY environment variable or provide llm.api_key in config."
+            return (
+                "LLM not configured: set OPENROUTER_API_KEY environment variable "
+                "or provide llm.api_key in config."
+            )
 
         max_steps = 5
         for step in range(max_steps):
@@ -110,11 +120,14 @@ class ChatManager:
 
             try:
                 logger.info(
-                    "Calling LLM (step %d/%d): model=%s api_base=%s", 
-                    step + 1, max_steps, self.llm_model, self.llm_api_base
+                    "Calling LLM (step %d/%d): model=%s api_base=%s",
+                    step + 1,
+                    max_steps,
+                    self.llm_model,
+                    self.llm_api_base,
                 )
                 llm_start = time.perf_counter()
-                
+
                 kwargs = {
                     "model": self.llm_model,
                     "messages": messages,
@@ -125,37 +138,48 @@ class ChatManager:
                     kwargs["tools"] = self.tools
 
                 response = litellm.completion(**kwargs)
-                
+
                 llm_elapsed = time.perf_counter() - llm_start
                 response_message = response.choices[0].message
-                
+
                 if response_message.tool_calls:
-                    logger.info("LLM requested %d tool calls", len(response_message.tool_calls))
+                    logger.info(
+                        "LLM requested %d tool calls", len(response_message.tool_calls)
+                    )
                     messages.append(response_message.model_dump())
-                    
+
                     for tool_call in response_message.tool_calls:
                         tool_name = tool_call.function.name
                         tool_args = tool_call.function.arguments
-                        logger.debug("Executing tool: %s with args: %s", tool_name, tool_args)
-                        
+                        logger.debug(
+                            "Executing tool: %s with args: %s", tool_name, tool_args
+                        )
+
                         tool_result = "Tool not implemented"
                         if tool_name in self.tool_implementations:
                             try:
                                 import json
+
                                 parsed_args = json.loads(tool_args)
-                                result = self.tool_implementations[tool_name](**parsed_args)
+                                result = self.tool_implementations[tool_name](
+                                    **parsed_args
+                                )
                                 tool_result = str(result)
                             except Exception as e:
-                                logger.error("Error executing tool %s: %s", tool_name, e)
+                                logger.error(
+                                    "Error executing tool %s: %s", tool_name, e
+                                )
                                 tool_result = f"Error: {e}"
-                        
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "name": tool_name,
-                            "content": tool_result
-                        })
-                    continue # Continue the loop to let the LLM use the tool results
+
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "name": tool_name,
+                                "content": tool_result,
+                            }
+                        )
+                    continue  # Continue the loop to let the LLM use the tool results
                 else:
                     reply = response_message.content
                     logger.info(
@@ -170,5 +194,5 @@ class ChatManager:
                 if len(error_str) > 1000:
                     error_str = error_str[:1000] + "... [truncated]"
                 return f"Error calling LLM: {error_str}"
-                
+
         return "Error: Exceeded maximum tool execution steps."

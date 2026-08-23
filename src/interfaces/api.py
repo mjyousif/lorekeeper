@@ -147,5 +147,7 @@ def read_root():
     """Health check endpoint."""
     logger.info("Health check endpoint called")
     return {
-        "message": "LoreKeeper API is running. POST to /v1/chat/completions to interact."
+        "message": (
+            "LoreKeeper API is running. POST to /v1/chat/completions to interact."
+        )
     }

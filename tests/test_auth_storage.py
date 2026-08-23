@@ -2,6 +2,10 @@ import contextlib
 import os
 import sqlite3
 
+import pytest
+
+from src.storage.auth_storage import AuthStorage
+
 
 @contextlib.contextmanager
 def _get_db(db_path):
@@ -11,11 +15,6 @@ def _get_db(db_path):
             yield con
     finally:
         con.close()
-
-
-import pytest
-
-from src.storage.auth_storage import AuthStorage
 
 
 @pytest.fixture

@@ -1,6 +1,9 @@
 import contextlib
 import logging
 import sqlite3
+import time
+import uuid
+from typing import Any, Optional
 
 
 @contextlib.contextmanager
@@ -12,10 +15,6 @@ def _get_db(db_path):
     finally:
         con.close()
 
-
-import time
-import uuid
-from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,8 @@ class AuthStorage:
         try:
             with _get_db(self.db_path) as con:
                 con.execute(
-                    "INSERT INTO pending_pairs (code, user_id, chat_id, created_at) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO pending_pairs "
+                    "(code, user_id, chat_id, created_at) VALUES (?, ?, ?, ?)",
                     (code, user_id, chat_id, now),
                 )
             return code
@@ -91,7 +91,8 @@ class AuthStorage:
                 if chat_id:
                     # It's a channel/group pairing
                     con.execute(
-                        "INSERT OR REPLACE INTO authorized_chats (chat_id, approved_by, approved_at) VALUES (?, ?, ?)",
+                        "INSERT OR REPLACE INTO authorized_chats "
+                        "(chat_id, approved_by, approved_at) VALUES (?, ?, ?)",
                         (chat_id, user_id, now),
                     )
                     con.execute("DELETE FROM pending_pairs WHERE code = ?", (code,))
@@ -99,7 +100,8 @@ class AuthStorage:
                 else:
                     # It's a user pairing
                     con.execute(
-                        "INSERT OR REPLACE INTO authorized_users (user_id, approved_at) VALUES (?, ?)",
+                        "INSERT OR REPLACE INTO authorized_users "
+                        "(user_id, approved_at) VALUES (?, ?)",
                         (user_id, now),
                     )
                     con.execute("DELETE FROM pending_pairs WHERE code = ?", (code,))

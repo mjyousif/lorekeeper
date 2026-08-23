@@ -10,7 +10,8 @@ async def main():
     c = Chat(id=-1001234, type="group")
 
     # What if they tag the bot via inline mention, or mention the username exactly?
-    # Actually, in group chats with privacy mode on, the bot *only* receives messages that start with its username, or reply to its messages.
+    # Actually, in group chats with privacy mode on, the bot *only* receives messages
+    # that start with its username, or reply to its messages.
     # WAIT! There is a specific issue with `filters.TEXT & ~filters.COMMAND`.
     # Does `~filters.COMMAND` filter out mentions? NO.
 

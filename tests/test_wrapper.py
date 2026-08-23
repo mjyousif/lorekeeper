@@ -24,7 +24,6 @@ def make_config(**kwargs) -> Config:
 
 
 class TestLoreKeeperInitialization:
-
     def test_init_with_single_directory(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
@@ -122,7 +121,6 @@ class TestLoreKeeperInitialization:
 
 
 class TestLoreKeeperFileOperations:
-
     @pytest.fixture
     def wrapper(self, tmp_path):
         data_dir = tmp_path / "data"
@@ -226,7 +224,6 @@ class TestLoreKeeperFileOperations:
 
 
 class TestLoreKeeperManifestAndRebuild:
-
     @pytest.fixture
     def wrapper_with_files(self, tmp_path):
         data_dir = tmp_path / "data"
@@ -277,7 +274,6 @@ class TestLoreKeeperManifestAndRebuild:
 
 
 class TestLoreKeeperVectorStoreIntegration:
-
     @pytest.fixture
     def wrapper(self, tmp_path):
         data_dir = tmp_path / "data"
@@ -331,13 +327,13 @@ class TestLoreKeeperVectorStoreIntegration:
 
 
 class TestLoreKeeperChat:
-
     @pytest.fixture
     def wrapper(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
         (data_dir / "science.txt").write_text(
-            "Photosynthesis is the process by which plants convert sunlight into energy."
+            "Photosynthesis is the process "
+            "by which plants convert sunlight into energy."
         )
 
         cfg = make_config(
@@ -359,41 +355,57 @@ class TestLoreKeeperChat:
         assert response["message"] == "Test response"
 
     def test_chat_retrieves_context_via_tool(self, wrapper):
-        # We simulate the LLM returning a tool call for memory_search, then returning a normal response
+        # We simulate the LLM returning a tool call for memory_search,
+        # then returning a normal response
         with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             tool_call = MagicMock()
             tool_call.id = "call_123"
             tool_call.function.name = "memory_search"
             import json
-            tool_call.function.arguments = json.dumps({"query": "What is photosynthesis?"})
-            
+
+            tool_call.function.arguments = json.dumps(
+                {"query": "What is photosynthesis?"}
+            )
+
             tool_choice = MagicMock()
             tool_choice.message.content = None
             tool_choice.message.tool_calls = [tool_call]
             tool_choice.message.model_dump.return_value = {
                 "role": "assistant",
-                "tool_calls": [{"id": "call_123", "type": "function", "function": {"name": "memory_search", "arguments": tool_call.function.arguments}}]
+                "tool_calls": [
+                    {
+                        "id": "call_123",
+                        "type": "function",
+                        "function": {
+                            "name": "memory_search",
+                            "arguments": tool_call.function.arguments,
+                        },
+                    }
+                ],
             }
-            
+
             final_choice = MagicMock()
             final_choice.message.content = "Photosynthesis is the process."
             final_choice.message.tool_calls = None
-            
+
             mock_completion.side_effect = [
                 MagicMock(choices=[tool_choice]),
-                MagicMock(choices=[final_choice])
+                MagicMock(choices=[final_choice]),
             ]
 
             wrapper.chat(session_id="test", message="What is photosynthesis?")
 
             assert mock_completion.call_count == 2
             messages_second_call = mock_completion.call_args_list[1][1]["messages"]
-            
+
             # Check that the tool result was added to the history
             tool_msg = messages_second_call[-1]
             assert tool_msg["role"] == "tool"
             assert tool_msg["name"] == "memory_search"
-            assert "Photosynthesis is the process by which plants convert sunlight into energy." in tool_msg["content"]
+            assert (
+                "Photosynthesis is the process "
+                "by which plants convert sunlight into energy." in tool_msg["content"]
+            )
 
     def test_chat_manages_conversation_history(self, wrapper):
         session_id = "history_test"
@@ -456,7 +468,6 @@ class TestLoreKeeperChat:
 
 
 class TestLoreKeeperWithPdf:
-
     def test_read_pdf_file(self, tmp_path):
         from src.core.wrapper import LoreKeeper
 
@@ -473,7 +484,6 @@ class TestLoreKeeperWithPdf:
 
 @pytest.mark.integration
 class TestLoreKeeperEndToEnd:
-
     def test_full_rag_pipeline(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()

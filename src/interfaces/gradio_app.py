@@ -50,7 +50,10 @@ def rag_query(
     assistant_message = response["message"]
 
     if include_context:
-        full_output = f"**Response:**\n{assistant_message}\n\n**Retrieved Context:**\n{context_str}"
+        full_output = (
+            f"**Response:**\n{assistant_message}\n\n"
+            f"**Retrieved Context:**\n{context_str}"
+        )
     else:
         full_output = assistant_message
 
@@ -151,7 +154,8 @@ with gr.Blocks(title="LoreKeeper UI", theme=gr.themes.Soft()) as demo:
 
     gr.Markdown("---")
     gr.Markdown(
-        "**Note:** The LLM requires an OpenRouter API key set in `OPENROUTER_API_KEY` or `LLM_API_KEY`."
+        "**Note:** The LLM requires an OpenRouter API key set in "
+        "`OPENROUTER_API_KEY` or `LLM_API_KEY`."
     )
 
 if __name__ == "__main__":

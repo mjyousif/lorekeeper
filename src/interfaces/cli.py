@@ -3,7 +3,7 @@
 LoreKeeper CLI - Manage the RAG chatbot system.
 
 Usage:
-  lorekeeper start [--restart] [api|telegram|ui|all]  Start one or all services in background
+  lorekeeper start [--restart] [api|telegram|ui|all]  Start services in background
   lorekeeper stop [api|telegram|ui|all]   Stop services
   lorekeeper logs [api|telegram|ui]       Follow logs (default: api and telegram)
   lorekeeper status                       Show which services are running
@@ -19,6 +19,7 @@ import subprocess  # nosec
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -37,7 +38,7 @@ PID_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
 
 # Service definitions
-SERVICES = {
+SERVICES: dict[str, dict[str, Any]] = {
     "api": {
         "cmd": [
             "uv",
@@ -143,9 +144,8 @@ def start_service(service: str, restart: bool = False):
             )
             stop_service(service)
         else:
-            logger.info(
-                f"[{service}] Already running (PID {read_pid(SERVICES[service]['pid'])})"
-            )
+            pid = read_pid(SERVICES[service]["pid"])
+            logger.info(f"[{service}] Already running (PID {pid})")
             return
 
     # Check dependencies first
@@ -175,7 +175,7 @@ def start_service(service: str, restart: bool = False):
 
     logger.info(f"[{service}] Starting {' '.join(cmd)}")
     with open(log_path, "a") as log_file:
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "cwd": ROOT,
             "env": env,
             "stdout": log_file,
@@ -196,7 +196,8 @@ def start_service(service: str, restart: bool = False):
         # Wait for this service to be ready if it has a health check
         if not wait_for_service(service):
             logger.error(
-                f"[{service}] Service started but failed health check. Check logs: {log_path}"
+                f"[{service}] Service started but failed health check. "
+                f"Check logs: {log_path}"
             )
     else:
         logger.error(f"[{service}] Failed to start (check logs: {log_path})")

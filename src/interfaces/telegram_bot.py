@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sqlite3
 import time
 from functools import lru_cache
 
@@ -40,20 +41,32 @@ session_storage = SessionStorage(db_path=DB_PATH)
 auth_storage = AuthStorage(db_path=DB_PATH)
 
 # Initialize TTS settings table
-import sqlite3
+
+
 def _init_tts_db():
     with sqlite3.connect(DB_PATH) as con:
-        con.execute("CREATE TABLE IF NOT EXISTS tts_settings (chat_id INTEGER PRIMARY KEY, enabled BOOLEAN)")
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS tts_settings "
+            "(chat_id INTEGER PRIMARY KEY, enabled BOOLEAN)"
+        )
+
 
 def is_tts_enabled(chat_id: int) -> bool:
     with sqlite3.connect(DB_PATH) as con:
-        cur = con.execute("SELECT enabled FROM tts_settings WHERE chat_id=?", (chat_id,))
+        cur = con.execute(
+            "SELECT enabled FROM tts_settings WHERE chat_id=?", (chat_id,)
+        )
         row = cur.fetchone()
         return bool(row[0]) if row else False
 
+
 def set_tts_enabled(chat_id: int, enabled: bool):
     with sqlite3.connect(DB_PATH) as con:
-        con.execute("INSERT OR REPLACE INTO tts_settings (chat_id, enabled) VALUES (?, ?)", (chat_id, enabled))
+        con.execute(
+            "INSERT OR REPLACE INTO tts_settings (chat_id, enabled) VALUES (?, ?)",
+            (chat_id, enabled),
+        )
+
 
 _init_tts_db()
 
@@ -260,23 +273,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tts_cfg = config.tts or {}
     tts_engine = tts_cfg.get("engine", "gtts").lower()
 
-    if is_tts_enabled(chat_id):
+    if chat_id is not None and is_tts_enabled(chat_id):
         try:
             import io
-            logger.info("[chat=%s] Generating TTS audio using engine: %s", chat_id, tts_engine)
+
+            logger.info(
+                "[chat=%s] Generating TTS audio using engine: %s", chat_id, tts_engine
+            )
             audio_fp = io.BytesIO()
 
             if tts_engine == "gemini":
                 from google import genai
                 from google.genai import types
-                
+
                 api_key = tts_cfg.get("gemini_api_key")
                 if not api_key:
-                    raise ValueError("gemini_api_key is required in tts config for gemini engine")
-                
+                    raise ValueError(
+                        "gemini_api_key is required in tts config for gemini engine"
+                    )
+
                 client = genai.Client(api_key=api_key)
                 gen_resp = client.models.generate_content(
-                    model='gemini-2.0-flash',
+                    model="gemini-2.0-flash",
                     contents=assistant_msg,
                     config=types.GenerateContentConfig(
                         response_modalities=["AUDIO"],
@@ -286,8 +304,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     voice_name="Aoede"
                                 )
                             )
-                        )
-                    )
+                        ),
+                    ),
                 )
                 # Find the audio part
                 audio_bytes = None
@@ -295,31 +313,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if part.inline_data:
                         audio_bytes = part.inline_data.data
                         break
-                
+
                 if not audio_bytes:
                     raise RuntimeError("No audio data returned from Gemini")
-                
+
                 audio_fp.write(audio_bytes)
                 audio_fp.seek(0)
-                
+
             else:
                 # Default to gTTS
                 from gtts import gTTS
+
                 tts = gTTS(text=assistant_msg, lang="en", slow=False)
                 tts.write_to_fp(audio_fp)
                 audio_fp.seek(0)
-            
+
             await update.message.reply_voice(
-                voice=audio_fp, 
+                voice=audio_fp,
                 caption=text,
-                caption_entities=[e.to_dict() for e in entities]
+                caption_entities=[e.to_dict() for e in entities],
             )
             logger.info("[chat=%s] Voice reply sent successfully", chat_id)
         except Exception as e:
-            logger.exception("[chat=%s] TTS failed, falling back to text: %s", chat_id, e)
-            await update.message.reply_text(text, entities=[e.to_dict() for e in entities])  # type: ignore
+            logger.exception(
+                "[chat=%s] TTS failed, falling back to text: %s", chat_id, e
+            )
+            ent = [e.to_dict() for e in entities]
+            await update.message.reply_text(text, entities=ent)  # type: ignore
     else:
-        await update.message.reply_text(text, entities=[e.to_dict() for e in entities])  # type: ignore
+        ent = [e.to_dict() for e in entities]
+        await update.message.reply_text(text, entities=ent)  # type: ignore
         logger.info("[chat=%s] Reply sent successfully", chat_id)
 
 
@@ -393,7 +416,8 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if is_authorized(update):
-        # We know the user is authorized, so if the overall chat is authorized, we are good.
+        # We know the user is authorized, so if the overall chat is authorized,
+        # we are good.
         # But let's check specifically if the chat is authorized.
         if (
             ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS  # type: ignore
@@ -406,7 +430,10 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     code = auth_storage.create_pending_pair(user.id, chat.id)  # type: ignore
     logger.info(
-        "[chat=%s user=%s] Chat pairing code generated: %s", chat.id, user.id, code  # type: ignore
+        "[chat=%s user=%s] Chat pairing code generated: %s",
+        chat.id,
+        user.id,
+        code,  # type: ignore
     )
     msg = (
         f"🔑 Chat pairing code is: `{code}`\n\n"
@@ -441,7 +468,8 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = chat.type if chat else "private"
     if chat_type in ["group", "supergroup"] and not is_user_authorized_only(user):
         logger.warning(
-            "[chat=%s user=%s] /clear rejected: user not authorized to clear group chat history",
+            "[chat=%s user=%s] /clear rejected: "
+            "user not authorized to clear group chat history",
             chat_id,
             user_id,
         )
@@ -469,23 +497,43 @@ async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = chat.id if chat else None
     username = user.username if user else "unknown"
 
-    logger.info("[chat=%s user=%s @%s] /tts command received", chat_id, user_id, username)
+    logger.info(
+        "[chat=%s user=%s @%s] /tts command received", chat_id, user_id, username
+    )
 
     if not is_authorized(update):
-        logger.warning("[chat=%s user=%s @%s] Unauthorized /tts rejected", chat_id, user_id, username)
+        logger.warning(
+            "[chat=%s user=%s @%s] Unauthorized /tts rejected",
+            chat_id,
+            user_id,
+            username,
+        )
         await update.message.reply_text("❌ You are not authorized to use this bot.")
         return
 
     chat_type = chat.type if chat else "private"
     if chat_type in ["group", "supergroup"] and not is_user_authorized_only(user):
-        logger.warning("[chat=%s user=%s] /tts rejected: user not authorized to change settings in group chat", chat_id, user_id)
-        await update.message.reply_text("❌ Only individually authorized users can toggle TTS in group chats.")
+        logger.warning(
+            "[chat=%s user=%s] /tts rejected: "
+            "user not authorized to change settings in group chat",
+            chat_id,
+            user_id,
+        )
+        await update.message.reply_text(
+            "❌ Only individually authorized users can toggle TTS in group chats."
+        )
         return
-        
+
+    if chat_id is None:
+        await update.message.reply_text("❌ Cannot determine chat ID.")
+        return
+
     args = context.args
     if not args or args[0].lower() not in ["on", "off"]:
         current_state = "ON" if is_tts_enabled(chat_id) else "OFF"
-        await update.message.reply_text(f"🗣️ TTS is currently {current_state}.\nUsage: /tts on | /tts off")
+        await update.message.reply_text(
+            f"🗣️ TTS is currently {current_state}.\nUsage: /tts on | /tts off"
+        )
         return
 
     enable = args[0].lower() == "on"

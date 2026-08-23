@@ -83,24 +83,28 @@ class LoreKeeper:
                 "type": "function",
                 "function": {
                     "name": "memory_search",
-                    "description": "Search the deep lore memory for relevant context. Use this when you need more information about the world, history, or characters.",
+                    "description": (
+                        "Search the lore memory for relevant context. "
+                        "Use this when you need more information about "
+                        "the world, history, or characters."
+                    ),
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "The search query to find relevant information."
+                                "description": (
+                                    "The search query to find relevant information."
+                                ),
                             }
                         },
-                        "required": ["query"]
-                    }
-                }
+                        "required": ["query"],
+                    },
+                },
             }
         ]
-        
-        self.tool_implementations = {
-            "memory_search": self._memory_search_impl
-        }
+
+        self.tool_implementations = {"memory_search": self._memory_search_impl}
 
         # Chat and history management
         llm_cfg = self.config.llm or {}

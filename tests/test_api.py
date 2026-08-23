@@ -18,7 +18,9 @@ def test_read_root(client):
     response = client.get("/")
     assert response.status_code == 200
     assert response.json() == {
-        "message": "LoreKeeper API is running. POST to /v1/chat/completions to interact."
+        "message": (
+            "LoreKeeper API is running. POST to /v1/chat/completions to interact."
+        )
     }
 
 

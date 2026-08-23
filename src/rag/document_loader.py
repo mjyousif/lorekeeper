@@ -17,7 +17,8 @@ class DocumentLoader:
         """Initialize the document loader.
 
         Args:
-            file_spec: A string or list of strings representing paths to files or directories.
+            file_spec: A string or list of strings representing paths to files
+                       or directories.
             exclude_paths: Optional list of file paths to exclude from loading/indexing.
         """
         self._file_spec = file_spec
@@ -88,7 +89,9 @@ class DocumentLoader:
         return results
 
     def scan_files(self) -> dict[str, tuple[float, int]]:
-        """Scan the current set of data files and return a dict of path → (mtime, size)."""
+        """Scan the current set of data files and return a dict of path →
+        (mtime, size).
+        """
         manifest: dict[str, tuple[float, int]] = {}
         current_files = self.resolve_files(self._file_spec)
         for path in current_files:

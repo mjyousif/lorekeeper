@@ -41,7 +41,9 @@ def test_expand_env_vars(monkeypatch):
 
 
 def test_config_id_parsing():
-    """Test parsing of allowed_user_ids and allowed_chat_ids strings to lists of ints."""
+    """Test parsing of allowed_user_ids and allowed_chat_ids strings to
+    lists of ints.
+    """
     # Test valid comma-separated string
     config = Config(allowed_user_ids="123, 456,789", allowed_chat_ids=" -100 , 200 ")
     assert config.allowed_user_ids == [123, 456, 789]
