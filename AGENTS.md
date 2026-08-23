@@ -17,7 +17,7 @@ For detailed documentation, please refer to the `docs/` folder:
 
 ## Maintenance Instructions for Agents
 
-**CRITICAL INSTRUCTION**: When making changes to the codebase (e.g., adding new features, modifying the architecture, adding configuration variables), you MUST update the corresponding markdown files in the `docs/` directory to reflect those changes. 
+**CRITICAL INSTRUCTION**: When making changes to the codebase (e.g., adding new features, modifying the architecture, adding configuration variables), you MUST update the corresponding markdown files in the `docs/` directory to reflect those changes.
 
 * If you add a new `.env` variable or modify `config.py`, update `docs/configuration.md`.
 * If you implement a new agent tool or feature, update `docs/features.md` and `docs/design.md`.
