@@ -126,6 +126,24 @@ class LoreKeeper:
                 except Exception as e:
                     logger.error("Failed to load image_generation tool: %s", e)
 
+            if "music_generation" in self.config.tools_config:
+                from .tools.music_generation import get_music_generation_tool
+
+                try:
+                    schema, impl = get_music_generation_tool(
+                        self.config.tools_config["music_generation"]
+                    )
+                    self.tools.append(schema)
+                    self.tool_implementations["generate_music"] = impl
+                    logger.info(
+                        "Loaded music_generation tool with provider: %s",
+                        self.config.tools_config["music_generation"].get(
+                            "provider", "google"
+                        ),
+                    )
+                except Exception as e:
+                    logger.error("Failed to load music_generation tool: %s", e)
+
         # Chat and history management
         llm_cfg = self.config.llm or {}
         self.chat_manager = ChatManager(

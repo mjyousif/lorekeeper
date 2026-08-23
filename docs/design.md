@@ -25,3 +25,4 @@ LoreKeeper implements an **Agentic Loop** to provide the LLM with dynamic tool-c
 *   `src/core/chat_manager.py` manages an iterative execution loop supporting LLM Tool Calling (function calling).
 *   When a tool call is requested by the model (e.g., retrieving lore via the `memory_search` tool), the execution loop pauses, executes the corresponding tool locally, feeds the result back to the LLM as a tool message, and continues the loop.
 *   This allows the character to autonomously decide when it needs more context from the deep lore or perform external actions before returning a final response.
+*   Dynamic tools such as image generation and music generation are loaded via a pluggable provider architecture (supporting external APIs and local instances like ComfyUI).
