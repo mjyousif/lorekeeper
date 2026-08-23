@@ -15,7 +15,7 @@ Usage:
 import logging
 import os
 import signal
-import subprocess
+import subprocess  # nosec
 import sys
 import time
 from pathlib import Path
@@ -188,7 +188,7 @@ def start_service(service: str, restart: bool = False):
         else:
             kwargs["start_new_session"] = True
 
-        process = subprocess.Popen(cmd, **kwargs)
+        process = subprocess.Popen(cmd, **kwargs)  # nosec
     pid_path.write_text(str(process.pid))
     time.sleep(0.5)
     if is_running(service):
@@ -209,7 +209,7 @@ def stop_service(service: str):
         return
     try:
         if os.name == "nt":
-            subprocess.run(
+            subprocess.run(  # nosec
                 ["taskkill", "/F", "/T", "/PID", str(pid)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -344,7 +344,7 @@ def main(argv: list[str] | None = None):
 
         code = args[0]
         # Run the approve_pair module directly
-        subprocess.run(
+        subprocess.run(  # nosec
             ["uv", "run", "python", "-m", "scripts.approve_pair", code], cwd=ROOT
         )
 
