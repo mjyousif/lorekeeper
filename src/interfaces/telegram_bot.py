@@ -309,7 +309,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 # Find the audio part
                 audio_bytes = None
-                for part in gen_resp.candidates[0].content.parts:
+                for part in gen_resp.candidates[0].content.parts:  # type: ignore
                     if part.inline_data:
                         audio_bytes = part.inline_data.data
                         break
@@ -328,7 +328,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tts.write_to_fp(audio_fp)
                 audio_fp.seek(0)
 
-            await update.message.reply_voice(
+            await update.message.reply_voice(  # type: ignore
                 voice=audio_fp,
                 caption=text,
                 caption_entities=[e.to_dict() for e in entities],
@@ -422,8 +422,8 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if (
             ALLOWED_CHAT_IDS and chat.id in ALLOWED_CHAT_IDS  # type: ignore
         ) or auth_storage.is_chat_authorized(
-            chat.id
-        ):  # type: ignore
+            chat.id  # type: ignore
+        ):
             logger.info("[chat=%s] /pair: chat already authorized", chat.id)  # type: ignore
             await update.message.reply_text("✅ This chat is already authorized!")  # type: ignore
             return
@@ -431,9 +431,9 @@ async def pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
     code = auth_storage.create_pending_pair(user.id, chat.id)  # type: ignore
     logger.info(
         "[chat=%s user=%s] Chat pairing code generated: %s",
-        chat.id,
+        chat.id,  # type: ignore
         user.id,
-        code,  # type: ignore
+        code,
     )
     msg = (
         f"🔑 Chat pairing code is: `{code}`\n\n"
@@ -508,7 +508,7 @@ async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id,
             username,
         )
-        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        await update.message.reply_text("❌ You are not authorized to use this bot.")  # type: ignore
         return
 
     chat_type = chat.type if chat else "private"
@@ -519,19 +519,19 @@ async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id,
             user_id,
         )
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore
             "❌ Only individually authorized users can toggle TTS in group chats."
         )
         return
 
     if chat_id is None:
-        await update.message.reply_text("❌ Cannot determine chat ID.")
+        await update.message.reply_text("❌ Cannot determine chat ID.")  # type: ignore
         return
 
     args = context.args
     if not args or args[0].lower() not in ["on", "off"]:
         current_state = "ON" if is_tts_enabled(chat_id) else "OFF"
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore
             f"🗣️ TTS is currently {current_state}.\nUsage: /tts on | /tts off"
         )
         return
@@ -539,7 +539,7 @@ async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     enable = args[0].lower() == "on"
     set_tts_enabled(chat_id, enable)
     state_str = "enabled" if enable else "disabled"
-    await update.message.reply_text(f"🗣️ TTS has been {state_str} for this chat.")
+    await update.message.reply_text(f"🗣️ TTS has been {state_str} for this chat.")  # type: ignore
 
 
 def main():
