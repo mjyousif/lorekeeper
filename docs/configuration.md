@@ -45,3 +45,10 @@ Settings for `telegram_bot.py`.
 *   **`telegram.session_db`**: SQLite database path for telegram chat sessions.
 *   **`allowed_user_ids`**: A comma-separated string or list of integers containing the user IDs permitted to interact with the bot.
 *   **`allowed_chat_ids`**: A comma-separated string or list of integers containing the chat/group IDs permitted to interact with the bot.
+
+### Tools Settings
+Agent tools are configured under the `tools_config` dictionary (or `tools_config` key in YAML). This allows you to enable optional tools and specify their pluggable providers.
+*   **`tools_config.image_generation.provider`**: The provider to use for image generation. Options: `google`, `comfyui`.
+*   **`tools_config.image_generation.api_key`**: API key for cloud providers (like Google).
+*   **`tools_config.image_generation.model`**: Model name to use (e.g. `imagen-3.0-generate-002`).
+*   **`tools_config.image_generation.url`**: URL for local providers like ComfyUI (e.g. `http://127.0.0.1:8188`).

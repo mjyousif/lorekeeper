@@ -12,7 +12,8 @@ This document outlines the current and upcoming capabilities of the LoreKeeper a
 *   **Multi-Platform Access**: Chat through a web UI (Gradio) or directly via a Telegram bot.
 *   **Text-to-Speech (TTS)**: The Telegram bot can generate and send voice messages using Google TTS (`gTTS`). This can be toggled by authorized users using the `/tts on` and `/tts off` commands.
 *   **Agentic Tool Use**: The bot executes tools on behalf of the user or of its own volition via an internal execution loop.
+*   **Image Generation (Pluggable Providers)**: Integration with image generation APIs to allow the character to "generate" or "share" images during the conversation. Supports Google (Imagen 3) and local ComfyUI via a pluggable architecture.
 
 ## Planned / Upcoming Features
 
-*   **Image Generation**: Integration with an image generation API (like DALL-E or Stable Diffusion) to allow the character to "generate" or "share" images during the conversation.
+*   **Expanded Tool Ecosystem**: Additional tool integrations and web searching capabilities.

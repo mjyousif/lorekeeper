@@ -45,6 +45,7 @@ class Config(BaseSettings):
     character_file: str | None = None
     allowed_user_ids: list[int] | str | int | None = None
     allowed_chat_ids: list[int] | str | int | None = None
+    tools_config: dict[str, Any] | None = None
 
     model_config = SettingsConfigDict(env_ignore_empty=True, extra="ignore")
 

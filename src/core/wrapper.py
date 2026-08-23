@@ -78,7 +78,7 @@ class LoreKeeper:
         self._load_context_character()
 
         # Define agent tools
-        self.tools = [
+        self.tools: list[dict] = [
             {
                 "type": "function",
                 "function": {
@@ -105,6 +105,26 @@ class LoreKeeper:
         ]
 
         self.tool_implementations = {"memory_search": self._memory_search_impl}
+
+        # Load dynamic tools from config
+        if self.config.tools_config:
+            if "image_generation" in self.config.tools_config:
+                from .tools.image_generation import get_image_generation_tool
+
+                try:
+                    schema, impl = get_image_generation_tool(
+                        self.config.tools_config["image_generation"]
+                    )
+                    self.tools.append(schema)
+                    self.tool_implementations["generate_image"] = impl
+                    logger.info(
+                        "Loaded image_generation tool with provider: %s",
+                        self.config.tools_config["image_generation"].get(
+                            "provider", "google"
+                        ),
+                    )
+                except Exception as e:
+                    logger.error("Failed to load image_generation tool: %s", e)
 
         # Chat and history management
         llm_cfg = self.config.llm or {}
