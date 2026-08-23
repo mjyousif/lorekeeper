@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.config import Config, _expand_env_vars, get_config
+from src.core.config import Config, _expand_env_vars, get_config
 
 
 def test_expand_env_vars(monkeypatch):
@@ -93,9 +93,9 @@ def test_from_file_yaml(tmp_path, monkeypatch):
     assert config.log_level == "WARNING"
 
     # Test ImportError handling when yaml is not installed
-    import src.config
+    import src.core.config
 
-    monkeypatch.setattr(src.config, "yaml", None)
+    monkeypatch.setattr(src.core.config, "yaml", None)
     with pytest.raises(ImportError, match="PyYAML is required"):
         Config.from_file(config_file)
 
@@ -117,9 +117,9 @@ def test_from_file_toml(tmp_path, monkeypatch):
     assert config.log_level == "CRITICAL"
 
     # Test ImportError handling when toml is not installed
-    import src.config
+    import src.core.config
 
-    monkeypatch.setattr(src.config, "toml", None)
+    monkeypatch.setattr(src.core.config, "toml", None)
     with pytest.raises(ImportError, match="toml is required"):
         Config.from_file(config_file)
 

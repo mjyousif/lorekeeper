@@ -20,7 +20,7 @@ This project is a wrapper around Large Language Model (LLM) calls that uses Retr
 ## Usage Example
 
 ```python
-from src.wrapper import LoreKeeper
+from src.core.wrapper import LoreKeeper
 
 # 1. Initialize the wrapper with your files
 file_paths = ["path/to/document1.txt", "path/to/document2.md"]
@@ -121,7 +121,7 @@ pip install -r requirements.txt
 Once the dependencies are installed, start the API server with `uvicorn`.
 
 ```shell
-uvicorn src.api:app --reload
+uvicorn src.interfaces.api:app --reload
 ```
 
 The server will be running at `http://127.0.0.1:8000`.
@@ -182,7 +182,7 @@ If `ALLOWED_USER_IDS` is not pre-configured in `.env`, the bot will deny access 
 1. Search for your bot in Telegram and send `/pair` to generate a pairing code.
 2. Approve the code inside the running container using `uv`:
    ```shell
-   docker compose exec lorekeeper uv run python -m src.approve_pair <CODE>
+   docker compose exec lorekeeper uv run python -m scripts.approve_pair <CODE>
    ```
 
 #### 5. Optional: GPU Acceleration

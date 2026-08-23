@@ -7,8 +7,8 @@ from typing import Annotated, List, Optional
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import Config, get_config
-from src.wrapper import LoreKeeper
+from src.core.config import Config, get_config
+from src.core.wrapper import LoreKeeper
 
 config = get_config()
 logging.basicConfig(

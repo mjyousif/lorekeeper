@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.config import Config
-from src.vector_store import VectorStore
-from src.wrapper import LoreKeeper
+from src.core.config import Config
+from src.rag.vector_store import VectorStore
+from src.core.wrapper import LoreKeeper
 
 
 def make_config(**kwargs) -> Config:
@@ -199,7 +199,7 @@ class TestLoreKeeperFileOperations:
 
     def test_chunk_text_splits_correctly(self, wrapper):
         text = "A" * 25000
-        from src.text_chunker import TextChunker
+        from src.rag.text_chunker import TextChunker
 
         chunker = TextChunker(chunk_size=1000, overlap=200, chunk_threshold=0)
         chunks = chunker.chunk_text(text)
@@ -208,14 +208,14 @@ class TestLoreKeeperFileOperations:
         assert chunks[0] == "A" * 1000
 
     def test_chunk_text_empty_input(self, wrapper):
-        from src.text_chunker import TextChunker
+        from src.rag.text_chunker import TextChunker
 
         chunker = TextChunker()
         assert chunker.chunk_text("") == []
 
     def test_chunk_text_overlap(self, wrapper):
         text = "0123456789" * 2000
-        from src.text_chunker import TextChunker
+        from src.rag.text_chunker import TextChunker
 
         chunker = TextChunker(chunk_size=500, overlap=100, chunk_threshold=0)
         chunks = chunker.chunk_text(text)
@@ -347,7 +347,7 @@ class TestLoreKeeperChat:
         return LoreKeeper(config=cfg, files=str(data_dir))
 
     def test_chat_creates_new_session_if_not_exists(self, wrapper):
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Test response"
             mock_completion.return_value.choices = [mock_choice]
@@ -358,7 +358,7 @@ class TestLoreKeeperChat:
         assert response["message"] == "Test response"
 
     def test_chat_retrieves_context(self, wrapper):
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Response"
             mock_completion.return_value.choices = [mock_choice]
@@ -378,7 +378,7 @@ class TestLoreKeeperChat:
         with patch.object(wrapper, "get_relevant_context") as mock_get:
             mock_get.return_value = ["Mocked context"]
 
-            with patch("src.chat_manager.litellm.completion") as mock_completion:
+            with patch("src.core.chat_manager.litellm.completion") as mock_completion:
                 mock_choice = MagicMock()
                 mock_choice.message.content = "Reply"
                 mock_completion.return_value.choices = [mock_choice]
@@ -389,7 +389,7 @@ class TestLoreKeeperChat:
     def test_chat_manages_conversation_history(self, wrapper):
         session_id = "history_test"
 
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply 1"
             mock_completion.return_value.choices = [mock_choice]
@@ -404,7 +404,7 @@ class TestLoreKeeperChat:
             assert len(messages) == 4  # system + 2 history + current user
 
     def test_chat_handles_llm_error(self, wrapper):
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_completion.side_effect = Exception("API error")
             response = wrapper.chat(session_id="test", message="Hello")
             assert "Error calling LLM" in response["message"]
@@ -424,7 +424,7 @@ class TestLoreKeeperChat:
     def test_chat_rebuilds_on_file_change(self, wrapper, tmp_path):
         data_dir = tmp_path / "data"
 
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply"
             mock_completion.return_value.choices = [mock_choice]
@@ -435,7 +435,7 @@ class TestLoreKeeperChat:
         (data_dir / "new.txt").write_text("New content")
         wrapper._manifest = {}
 
-        with patch("src.chat_manager.litellm.completion") as mock_completion:
+        with patch("src.core.chat_manager.litellm.completion") as mock_completion:
             mock_choice = MagicMock()
             mock_choice.message.content = "Reply"
             mock_completion.return_value.choices = [mock_choice]
@@ -448,14 +448,14 @@ class TestLoreKeeperChat:
 class TestLoreKeeperWithPdf:
 
     def test_read_pdf_file(self, tmp_path):
-        from src.wrapper import LoreKeeper
+        from src.core.wrapper import LoreKeeper
 
         pdf_dir = tmp_path / "pdf_data"
         pdf_dir.mkdir()
         pdf_path = pdf_dir / "test.pdf"
         pdf_path.write_bytes(open("tests/sample.pdf", "rb").read())
 
-        from src.config import Config
+        from src.core.config import Config
 
         keeper = LoreKeeper(config=Config(), files=[str(pdf_dir)])
         assert "Hello, World!" in keeper.document_loader.read_file(str(pdf_path))

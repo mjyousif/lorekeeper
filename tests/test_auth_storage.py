@@ -1,9 +1,19 @@
+import contextlib
 import os
 import sqlite3
+import contextlib
+@contextlib.contextmanager
+def _get_db(db_path):
+    con = sqlite3.connect(db_path)
+    try:
+        with con:
+            yield con
+    finally:
+        con.close()
 
 import pytest
 
-from src.auth_storage import AuthStorage
+from src.storage.auth_storage import AuthStorage
 
 
 @pytest.fixture
@@ -17,7 +27,7 @@ def auth_storage(tmp_path):
 
 def test_init_db(auth_storage):
     assert os.path.exists(auth_storage.db_path)
-    with sqlite3.connect(auth_storage.db_path) as con:
+    with _get_db(auth_storage.db_path) as con:
         cur = con.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [row[0] for row in cur.fetchall()]
         assert "pending_pairs" in tables

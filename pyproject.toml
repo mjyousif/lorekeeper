@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-lorekeeper = "src.cli:main"
+lorekeeper = "src.interfaces.cli:main"
 
 [dependency-groups]
 ui = ["gradio>=4.0.0"]

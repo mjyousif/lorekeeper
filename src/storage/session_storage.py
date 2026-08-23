@@ -1,6 +1,16 @@
+import contextlib
 import json
 import logging
 import sqlite3
+import contextlib
+@contextlib.contextmanager
+def _get_db(db_path):
+    con = sqlite3.connect(db_path)
+    try:
+        with con:
+            yield con
+    finally:
+        con.close()
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +30,7 @@ class SessionStorage:
     def _init_db(self) -> None:
         """Create the history table if it doesn't exist."""
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 con.execute("""
                     CREATE TABLE IF NOT EXISTS history (
                         chat_id INTEGER PRIMARY KEY,
@@ -41,7 +51,7 @@ class SessionStorage:
             A list of message dictionaries (role and content).
         """
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 cur = con.execute(
                     "SELECT messages FROM history WHERE chat_id=?", (chat_id,)
                 )
@@ -65,7 +75,7 @@ class SessionStorage:
             messages: A list of message dictionaries to store.
         """
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 con.execute(
                     "INSERT OR REPLACE INTO history (chat_id, messages) VALUES (?, ?)",
                     (chat_id, json.dumps(messages)),

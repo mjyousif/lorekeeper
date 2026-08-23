@@ -1,5 +1,5 @@
 def test_list_str(monkeypatch):
-    from src.config import Config
+    from src.core.config import Config
 
     c = Config(allowed_chat_ids=["-1001234", "-567890"])
     assert -1001234 in c.allowed_chat_ids

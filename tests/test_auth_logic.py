@@ -29,17 +29,17 @@ def test_auth_logic(monkeypatch):
         {
             "telegram": MagicMock(),
             "telegram.ext": MagicMock(),
-            "src.wrapper": MagicMock(),
-            "src.session_storage": MagicMock(),
+            "src.core.wrapper": MagicMock(),
+            "src.storage.session_storage": MagicMock(),
             "telegramify_markdown": MagicMock(),
         },
     ):
         # Reset get_config cache to load the newly set env vars
-        from src.config import get_config
+        from src.core.config import get_config
 
         get_config.cache_clear()
 
-        import src.telegram_bot as tb
+        import src.interfaces.telegram_bot as tb
 
         assert tb.ALLOWED_USER_IDS == set()
         assert tb.ALLOWED_CHAT_IDS == {-12345}

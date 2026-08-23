@@ -8,9 +8,9 @@ import uuid
 
 from .chat_manager import ChatManager
 from .config import Config, get_config
-from .document_loader import DocumentLoader
-from .text_chunker import TextChunker
-from .vector_store import ChromaVectorStore, VectorStore
+from src.rag.document_loader import DocumentLoader
+from src.rag.text_chunker import TextChunker
+from src.rag.vector_store import ChromaVectorStore, VectorStore
 
 logger = logging.getLogger(__name__)
 

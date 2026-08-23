@@ -4,22 +4,23 @@ LoreKeeper is designed as a modular, lightweight wrapper around Large Language M
 
 ## Core Architecture
 
-The system is broken down into the following core components (located in `src/`):
+The system follows a domain-driven structure separated into the following components (located in `src/`):
 
-1.  **`wrapper.py`**: The main entry point (`LoreKeeper`) that orchestrates the integration between the LLM, the vector store, and session history.
-2.  **`chat_manager.py`**: Handles the direct interaction with `litellm`. It manages token counting, context window limits, and injects both the `character` persona and the retrieved `context` into the system prompt.
-3.  **`vector_store.py` / `document_loader.py`**: Responsible for creating embeddings from local files, chunking text, and providing similarity search for the RAG pipeline.
-4.  **`session_storage.py` / `auth_storage.py`**: Manages persistence for user sessions (chat history) and authentication.
+1.  **`core`**: Contains `wrapper.py` (the main `LoreKeeper` orchestrator) and `chat_manager.py` (handles direct interaction with `litellm`, token counting, and prompt injection).
+2.  **`rag`**: Contains `vector_store.py`, `document_loader.py`, and `text_chunker.py` for creating embeddings, chunking text, and providing similarity search.
+3.  **`storage`**: Contains `session_storage.py` and `auth_storage.py` to manage persistence for user sessions (chat history) and authentication.
+4.  **`interfaces`**: User interaction endpoints.
 
 ## Interfaces
 
 LoreKeeper exposes multiple interfaces for user interaction:
-*   **FastAPI Backend (`api.py`)**: An OpenAI-compliant `/v1/chat/completions` REST API endpoint.
-*   **Telegram Bot (`telegram_bot.py`)**: A bot integration allowing users to chat directly via Telegram.
-*   **Gradio App (`gradio_app.py`)**: A web-based UI for testing and chatting.
+*   **FastAPI Backend (`src/interfaces/api.py`)**: An OpenAI-compliant `/v1/chat/completions` REST API endpoint.
+*   **Telegram Bot (`src/interfaces/telegram_bot.py`)**: A bot integration allowing users to chat directly via Telegram.
+*   **Gradio App (`src/interfaces/gradio_app.py`)**: A web-based UI for testing and chatting.
+*   **CLI (`src/interfaces/cli.py`)**: A command line application.
 
 ## Future Agentic Design
 
 The architecture is currently being evolved to support an **Agentic Loop**. 
-*   `chat_manager.py` will be extended to support LLM Tool Calling (function calling).
+*   `src/core/chat_manager.py` will be extended to support LLM Tool Calling (function calling).
 *   When a tool call is requested by the model (e.g., "generate image"), the execution loop will pause, execute the tool locally, feed the result back to the LLM, and yield a final character-driven response.

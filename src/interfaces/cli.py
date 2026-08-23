@@ -43,7 +43,7 @@ SERVICES = {
             "uv",
             "run",
             "uvicorn",
-            "src.api:app",
+            "src.interfaces.api:app",
             "--host",
             "127.0.0.1",
             "--port",
@@ -56,7 +56,7 @@ SERVICES = {
         "ready_url": "http://127.0.0.1:8000/",  # Health check endpoint
     },
     "telegram": {
-        "cmd": ["uv", "run", "python", "-m", "src.telegram_bot"],
+        "cmd": ["uv", "run", "python", "-m", "src.interfaces.telegram_bot"],
         "pid": PID_DIR / "telegram.pid",
         "log": LOG_DIR / "telegram.log",
         "daemon": True,
@@ -64,7 +64,7 @@ SERVICES = {
         "ready_url": None,  # No health check for telegram
     },
     "ui": {
-        "cmd": ["uv", "run", "python", "-m", "src.gradio_app"],
+        "cmd": ["uv", "run", "python", "-m", "src.interfaces.gradio_app"],
         "pid": PID_DIR / "ui.pid",
         "log": LOG_DIR / "ui.log",
         "daemon": True,
@@ -345,7 +345,7 @@ def main(argv: list[str] | None = None):
         code = args[0]
         # Run the approve_pair module directly
         subprocess.run(
-            ["uv", "run", "python", "-m", "src.approve_pair", code], cwd=ROOT
+            ["uv", "run", "python", "-m", "scripts.approve_pair", code], cwd=ROOT
         )
 
     else:

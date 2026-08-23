@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api import app, get_lorekeeper
-from src.wrapper import LoreKeeper
+from src.interfaces.api import app, get_lorekeeper
+from src.core.wrapper import LoreKeeper
 
 
 @pytest.fixture
@@ -100,8 +100,8 @@ def test_chat_completions_rag_exception(client):
     assert response.json()["detail"] == "RAG error: Something went wrong"
 
 
-@patch("src.api.LoreKeeper")
-@patch("src.api.get_config")
+@patch("src.interfaces.api.LoreKeeper")
+@patch("src.interfaces.api.get_config")
 def test_get_lorekeeper_caching(mock_get_config, mock_lorekeeper_class):
     # Clear cache before testing to ensure clean state
     get_lorekeeper.cache_clear()

@@ -1,8 +1,8 @@
 import logging
 import sys
 
-from src.auth_storage import AuthStorage
-from src.config import get_config
+from src.storage.auth_storage import AuthStorage
+from src.core.config import get_config
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     if len(sys.argv) != 2:
-        logger.error("Usage: uv run python -m src.approve_pair <CODE>")
+        logger.error("Usage: uv run python -m scripts.approve_pair <CODE>")
         sys.exit(1)
 
     code = sys.argv[1]

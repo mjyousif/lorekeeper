@@ -1,5 +1,15 @@
+import contextlib
 import logging
 import sqlite3
+import contextlib
+@contextlib.contextmanager
+def _get_db(db_path):
+    con = sqlite3.connect(db_path)
+    try:
+        with con:
+            yield con
+    finally:
+        con.close()
 import time
 import uuid
 from typing import Optional, Any
@@ -16,7 +26,7 @@ class AuthStorage:
 
     def _init_db(self) -> None:
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 con.execute("""
                     CREATE TABLE IF NOT EXISTS pending_pairs (
                         code TEXT PRIMARY KEY,
@@ -47,7 +57,7 @@ class AuthStorage:
         code = str(uuid.uuid4())[:8].upper()
         now = int(time.time())
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 con.execute(
                     "INSERT INTO pending_pairs (code, user_id, chat_id, created_at) VALUES (?, ?, ?, ?)",
                     (code, user_id, chat_id, now),
@@ -64,7 +74,7 @@ class AuthStorage:
         """
         code = code.upper().strip()
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 cur = con.execute(
                     "SELECT user_id, chat_id FROM pending_pairs WHERE code = ?", (code,)
                 )
@@ -98,7 +108,7 @@ class AuthStorage:
     def is_user_authorized(self, user_id: int) -> bool:
         """Checks if a user is dynamically authorized."""
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 cur = con.execute(
                     "SELECT 1 FROM authorized_users WHERE user_id = ?", (user_id,)
                 )
@@ -110,7 +120,7 @@ class AuthStorage:
     def is_chat_authorized(self, chat_id: int) -> bool:
         """Checks if a chat is dynamically authorized."""
         try:
-            with sqlite3.connect(self.db_path) as con:
+            with _get_db(self.db_path) as con:
                 cur = con.execute(
                     "SELECT 1 FROM authorized_chats WHERE chat_id = ?", (chat_id,)
                 )

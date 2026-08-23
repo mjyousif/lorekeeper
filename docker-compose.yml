@@ -2,7 +2,7 @@ services:
   lorekeeper-bot:
     image: ghcr.io/${GITHUB_ACTOR:-mjyousif}/lorekeeper:latest
     container_name: lorekeeper-bot
-    command: ["uv", "run", "python", "-m", "src.telegram_bot"]
+    command: ["uv", "run", "python", "-m", "src.interfaces.telegram_bot"]
     restart: unless-stopped
     env_file:
       - .env
@@ -16,7 +16,7 @@ services:
   lorekeeper-api:
     image: ghcr.io/${GITHUB_ACTOR:-mjyousif}/lorekeeper:latest
     container_name: lorekeeper-api
-    command: ["uv", "run", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uv", "run", "uvicorn", "src.interfaces.api:app", "--host", "0.0.0.0", "--port", "8000"]
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -31,7 +31,7 @@ services:
   lorekeeper-ui:
     image: ghcr.io/${GITHUB_ACTOR:-mjyousif}/lorekeeper:latest
     container_name: lorekeeper-ui
-    command: ["uv", "run", "python", "-m", "src.gradio_app"]
+    command: ["uv", "run", "python", "-m", "src.interfaces.gradio_app"]
     restart: unless-stopped
     ports:
       - "7860:7860"

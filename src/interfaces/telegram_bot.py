@@ -13,10 +13,10 @@ from telegram.ext import (
 )
 from telegramify_markdown import convert
 
-from src.auth_storage import AuthStorage
-from src.config import get_config
-from src.session_storage import SessionStorage
-from src.wrapper import LoreKeeper
+from src.storage.auth_storage import AuthStorage
+from src.core.config import get_config
+from src.storage.session_storage import SessionStorage
+from src.core.wrapper import LoreKeeper
 
 config = get_config()
 

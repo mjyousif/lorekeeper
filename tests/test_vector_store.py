@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.vector_store import ChromaVectorStore, VectorStore
+from src.rag.vector_store import ChromaVectorStore, VectorStore
 
 
 class TestVectorStoreInterface:
@@ -45,9 +45,8 @@ class TestChromaVectorStore:
     """Test the ChromaVectorStore implementation."""
 
     @pytest.fixture
-    def temp_dir(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield tmpdir
+    def temp_dir(self, tmp_path):
+        yield str(tmp_path)
 
     @pytest.fixture
     def vector_store(self, temp_dir):

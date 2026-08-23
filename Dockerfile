@@ -16,4 +16,4 @@ RUN uv sync --frozen
 COPY . .
 
 # Run the Telegram bot
-CMD ["uv", "run", "python", "-m", "src.telegram_bot"]
+CMD ["uv", "run", "python", "-m", "src.interfaces.telegram_bot"]
