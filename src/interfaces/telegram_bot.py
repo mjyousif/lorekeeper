@@ -4,7 +4,7 @@ import sqlite3
 import time
 from functools import lru_cache
 
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -542,10 +542,22 @@ async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🗣️ TTS has been {state_str} for this chat.")  # type: ignore
 
 
+async def post_init(application: Application):
+    """Automatically register bot commands with Telegram."""
+    commands = [
+        BotCommand("start", "Start the bot and get a greeting"),
+        BotCommand("pair", "Get a pairing code for authorization"),
+        BotCommand("clear", "Wipe history for this chat"),
+        BotCommand("tts", "Toggle Text-to-Speech (on/off)"),
+    ]
+    await application.bot.set_my_commands(commands)
+    logger.info("Registered bot commands: %s", ", ".join(c.command for c in commands))
+
+
 def main():
     """Start the Telegram bot."""
     logger.info("Starting Telegram bot (token ending ...%s)", TELEGRAM_BOT_TOKEN[-6:])
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("pair", pair))
     app.add_handler(CommandHandler("clear", clear_history))
