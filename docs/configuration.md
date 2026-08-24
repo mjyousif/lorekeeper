@@ -52,8 +52,10 @@ Agent tools are configured under the `tools_config` dictionary (or `tools_config
 *   **`tools_config.image_generation.api_key`**: API key for cloud providers (like Google).
 *   **`tools_config.image_generation.model`**: Model name to use (e.g. `imagen-3.0-generate-002`).
 *   **`tools_config.image_generation.url`**: URL for local providers like ComfyUI (e.g. `http://127.0.0.1:8188`).
+*   **`tools_config.image_generation.workflow_file`**: Path to the ComfyUI workflow JSON file. The workflow must contain a `__PROMPT__` placeholder for text replacement.
 
 *   **`tools_config.music_generation.provider`**: The provider to use for music generation. Options: `google`, `comfyui`.
 *   **`tools_config.music_generation.api_key`**: API key for cloud providers (like Google).
 *   **`tools_config.music_generation.model`**: Model name to use (e.g. `gemini-pro-audio`).
 *   **`tools_config.music_generation.url`**: URL for local providers like ComfyUI.
+*   **`tools_config.music_generation.workflow_file`**: Path to the ComfyUI workflow JSON file. The workflow must contain a `__PROMPT__` and optionally `__LYRICS__` placeholders.

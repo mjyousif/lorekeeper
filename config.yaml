@@ -42,3 +42,14 @@ telegram:
 # Authorization - list of allowed Telegram user IDs and chat IDs
 allowed_user_ids: ${ALLOWED_USER_IDS}
 allowed_chat_ids: ${ALLOWED_CHAT_IDS}
+
+
+tools_config:
+  image_generation:
+    provider: "comfyui"
+    url: "http://127.0.0.1:8188"
+    workflow_file: "resources/comfyui/image_workflow.json"
+  music_generation:
+    provider: "comfyui"
+    url: "http://127.0.0.1:8188"
+    workflow_file: "resources/comfyui/audio_workflow.json"
