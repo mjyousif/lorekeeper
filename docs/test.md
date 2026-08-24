@@ -10,6 +10,7 @@ Tests are located in the `tests/` directory and mirror the structure of the `src
 *   **Integration Tests**: The `test_wrapper.py` file validates the integration between the RAG system, LLM invocation, and session management.
 *   **API Tests**: `test_api.py` ensures the FastAPI endpoints function correctly and maintain OpenAI compliance.
 *   **Bot Tests**: Files like `test_mention.py`, `test_group.py`, and `test_is_mention.py` validate the parsing and routing logic for the Telegram bot interface.
+*   **End-to-End Component Tests**: The `tests/e2e/` directory contains tests verifying that the whole system boundary (Core, FastAPI, Telegram, and Gradio UI) functions end-to-end. External services (like LLMs or image generation APIs) are mocked, while all internal logic—such as memory search loops and UI context building—is exercised sequentially for realistic multi-turn scenarios.
 
 ## Running Tests
 

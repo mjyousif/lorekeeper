@@ -353,7 +353,7 @@ class LoreKeeper:
         )
 
         # 2. Ask ChatManager for response
-        assistant_message = self.chat_manager.generate_response(
+        assistant_message, new_messages = self.chat_manager.generate_response(
             message=message,
             retrieved_context=[],
             history=history,
@@ -361,8 +361,17 @@ class LoreKeeper:
 
         if not assistant_message.startswith("Error calling LLM"):
             # 3. Update history (only if no error)
+            # new_messages includes the user message since generate_response puts
+            # it there.
+            # Wait, `generate_response` starts base_message_count after the system
+            # + history + user?
+            # No, in generate_response:
+            # messages = [system_msg] + history + [{"role": "user", "content": message}]
+            # base_message_count = len(messages)
+            # Thus, new_messages does NOT contain the user message. We must append
+            # it first.
             history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": assistant_message})
+            history.extend(new_messages)
             logger.debug(
                 "[session=%s] History updated to %d messages", session_id, len(history)
             )
@@ -405,7 +414,7 @@ class LoreKeeper:
             self._rebuild_index()
 
         # 1. Ask ChatManager for response
-        assistant_message = self.chat_manager.generate_response(
+        assistant_message, _ = self.chat_manager.generate_response(
             message=user_message,
             retrieved_context=[],
             history=history,

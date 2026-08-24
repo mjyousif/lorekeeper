@@ -21,14 +21,54 @@ def test_get_image_generation_tool_google():
     # directly below.
 
 
-def test_get_image_generation_tool_comfyui():
+class MockResponse:
+    def __init__(self, data):
+        self.data = data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def read(self):
+        return self.data
+
+
+@patch("src.core.tools.image_generation.comfyui.urllib.request.urlopen")
+def test_get_image_generation_tool_comfyui(mock_urlopen):
+    mock_urlopen.side_effect = [
+        MockResponse(b'{"prompt_id": "12345"}'),
+        MockResponse(
+            b'{"12345": {"outputs": {"9": {"images": '
+            b'[{"filename": "image.png", "subfolder": "", "type": "output"}]}}}}'
+        ),
+    ]
+
     config = {"provider": "comfyui", "url": "http://test:8188"}
     schema, impl = get_image_generation_tool(config)
     assert schema["function"]["name"] == "generate_image"
 
     result = impl("test prompt")
-    assert "ComfyUI image generation requested" in result
-    assert "test prompt" in result
+    assert "![Generated Image]" in result
+    assert "image.png" in result
+
+
+@patch("src.core.tools.image_generation.comfyui.urllib.request.urlopen")
+def test_comfyui_provider(mock_urlopen):
+    mock_urlopen.side_effect = [
+        MockResponse(b'{"prompt_id": "12345"}'),
+        MockResponse(
+            b'{"12345": {"outputs": {"9": {"images": '
+            b'[{"filename": "image.png", "subfolder": "", "type": "output"}]}}}}'
+        ),
+    ]
+
+    provider = ComfyUIImageGenerationProvider({"url": "http://test:8188"})
+    assert provider.url == "http://test:8188"
+    result = provider.generate("test prompt")
+    assert "![Generated Image]" in result
+    assert "http://test:8188" in result
 
 
 def test_get_image_generation_tool_unknown():
@@ -37,14 +77,6 @@ def test_get_image_generation_tool_unknown():
         ValueError, match="Unknown image generation provider: unknown_provider"
     ):
         get_image_generation_tool(config)
-
-
-def test_comfyui_provider():
-    provider = ComfyUIImageGenerationProvider({"url": "http://test:8188"})
-    assert provider.url == "http://test:8188"
-    result = provider.generate("test prompt")
-    assert "test prompt" in result
-    assert "ComfyUI" in result
 
 
 @patch("src.core.tools.image_generation.google.genai")

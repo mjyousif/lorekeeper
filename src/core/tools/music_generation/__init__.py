@@ -28,7 +28,11 @@ def get_music_generation_tool(
             "description": (
                 "Generate music or audio based on a text prompt. "
                 "Use this tool when the user asks you to create, "
-                "compose, or generate music or audio."
+                "compose, or generate music or audio. "
+                "By default, you MUST generate and provide original "
+                "lyrics for the song, unless the user explicitly "
+                "requests an instrumental. IMPORTANT: You MUST print "
+                "the generated lyrics in your final response to the user!"
             ),
             "parameters": {
                 "type": "object",
@@ -36,16 +40,26 @@ def get_music_generation_tool(
                     "prompt": {
                         "type": "string",
                         "description": (
-                            "A detailed description of the music or audio to generate."
+                            "A detailed description of the music or "
+                            "audio to generate (genre, mood, instruments)."
                         ),
-                    }
+                    },
+                    "lyrics": {
+                        "type": "string",
+                        "description": (
+                            "The lyrics for the song. You must ALWAYS "
+                            "generate and provide full, original lyrics "
+                            "here unless the user explicitly asked "
+                            "for an instrumental."
+                        ),
+                    },
                 },
-                "required": ["prompt"],
+                "required": ["prompt", "lyrics"],
             },
         },
     }
 
-    def impl(prompt: str) -> str:
-        return provider.generate(prompt)
+    def impl(prompt: str, lyrics: str = "") -> str:
+        return provider.generate(prompt, lyrics)
 
     return schema, impl

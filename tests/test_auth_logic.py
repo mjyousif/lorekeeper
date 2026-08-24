@@ -39,7 +39,11 @@ def test_auth_logic(monkeypatch):
 
         get_config.cache_clear()
 
+        import importlib
+
         import src.interfaces.telegram_bot as tb
+
+        importlib.reload(tb)
 
         assert tb.ALLOWED_USER_IDS == set()
         assert tb.ALLOWED_CHAT_IDS == {-12345}

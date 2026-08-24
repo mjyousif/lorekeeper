@@ -5,6 +5,6 @@ class MusicGenerationProvider(ABC):
     """Abstract base class for music generation providers."""
 
     @abstractmethod
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, lyrics: str = "") -> str:
         """Generate music from a prompt and return a URL or markdown."""
         pass

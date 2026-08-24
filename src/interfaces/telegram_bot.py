@@ -242,8 +242,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except asyncio.CancelledError:
             pass
 
-    logger.debug("[chat=%s] Converting response to Telegram markdown", chat_id)
-    text, entities = convert(assistant_msg)
+    logger.debug("[chat=%s] Extracting markdown images and audio", chat_id)
+    import io
+    import re
+    import urllib.request
+
+    image_pattern = re.compile(r"!\[(.*?)\]\((.*?)\)")
+    images = image_pattern.findall(assistant_msg)
+
+    audio_pattern = re.compile(r"\[Generated Audio\]\((.*?)\)")
+    audios = audio_pattern.findall(assistant_msg)
+
+    text_content = image_pattern.sub("", assistant_msg)
+    text_content = audio_pattern.sub("", text_content).strip()
+    text, entities = convert(text_content)
 
     # Persist updated history to SQLite
     updated_history = wrapper.sessions.get(session_id, [])
@@ -270,80 +282,124 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         text = text[:4046] + "...\n\n[Message truncated due to Telegram limit]"
 
+    # Send images first
+    for alt, url in images:
+        try:
+            logger.info("[chat=%s] Downloading image from %s", chat_id, url)
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req) as response:  # nosec B310
+                img_bytes = response.read()
+            await update.message.reply_photo(  # type: ignore
+                photo=io.BytesIO(img_bytes),
+                caption=alt if alt != "Generated Image" else None,
+                read_timeout=60,
+                write_timeout=60,
+            )
+        except Exception as e:
+            logger.error("[chat=%s] Failed to send image %s: %s", chat_id, url, e)
+            # Fallback to appending the URL to the text
+            text += f"\n\n[Image: {url}]"
+            # Recompute entities for fallback
+            text, entities = convert(text_content + f"\n\n[Image: {url}]")
+
+    # Send audios
+    for url in audios:
+        try:
+            logger.info("[chat=%s] Downloading audio from %s", chat_id, url)
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req) as response:  # nosec B310
+                audio_bytes = response.read()
+            audio_io = io.BytesIO(audio_bytes)
+            audio_io.name = "song.mp3"
+            await update.message.reply_audio(  # type: ignore
+                audio=audio_io,
+                read_timeout=120,
+                write_timeout=120,
+            )
+        except Exception as e:
+            logger.error("[chat=%s] Failed to send audio %s: %s", chat_id, url, e)
+            text += f"\n\n[Audio: {url}]"
+            text, entities = convert(text_content + f"\n\n[Audio: {url}]")
+
     tts_cfg = config.tts or {}
     tts_engine = tts_cfg.get("engine", "gtts").lower()
 
-    if chat_id is not None and is_tts_enabled(chat_id):
-        try:
-            import io
+    if text:
+        if chat_id is not None and is_tts_enabled(chat_id):
+            try:
+                import io
 
-            logger.info(
-                "[chat=%s] Generating TTS audio using engine: %s", chat_id, tts_engine
-            )
-            audio_fp = io.BytesIO()
-
-            if tts_engine == "gemini":
-                from google import genai
-                from google.genai import types
-
-                api_key = tts_cfg.get("gemini_api_key")
-                if not api_key:
-                    raise ValueError(
-                        "gemini_api_key is required in tts config for gemini engine"
-                    )
-
-                client = genai.Client(api_key=api_key)
-                gen_resp = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=assistant_msg,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        speech_config=types.SpeechConfig(
-                            voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                    voice_name="Aoede"
-                                )
-                            )
-                        ),
-                    ),
+                logger.info(
+                    "[chat=%s] Generating TTS audio using engine: %s",
+                    chat_id,
+                    tts_engine,
                 )
-                # Find the audio part
-                audio_bytes = None
-                for part in gen_resp.candidates[0].content.parts:  # type: ignore
-                    if part.inline_data:
-                        audio_bytes = part.inline_data.data
-                        break
+                audio_fp = io.BytesIO()
 
-                if not audio_bytes:
-                    raise RuntimeError("No audio data returned from Gemini")
+                if tts_engine == "gemini":
+                    from google import genai
+                    from google.genai import types
 
-                audio_fp.write(audio_bytes)
-                audio_fp.seek(0)
+                    api_key = tts_cfg.get("gemini_api_key")
+                    if not api_key:
+                        raise ValueError(
+                            "gemini_api_key is required in tts config for gemini engine"
+                        )
 
-            else:
-                # Default to gTTS
-                from gtts import gTTS
+                    client = genai.Client(api_key=api_key)
+                    gen_resp = client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=text_content,
+                        config=types.GenerateContentConfig(
+                            response_modalities=["AUDIO"],
+                            speech_config=types.SpeechConfig(
+                                voice_config=types.VoiceConfig(
+                                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                        voice_name="Aoede"
+                                    )
+                                )
+                            ),
+                        ),
+                    )
+                    # Find the audio part
+                    audio_bytes = None
+                    for part in gen_resp.candidates[0].content.parts:  # type: ignore
+                        if part.inline_data:
+                            audio_bytes = part.inline_data.data
+                            break
 
-                tts = gTTS(text=assistant_msg, lang="en", slow=False)
-                tts.write_to_fp(audio_fp)
-                audio_fp.seek(0)
+                    if not audio_bytes:
+                        raise RuntimeError("No audio data returned from Gemini")
 
-            await update.message.reply_voice(  # type: ignore
-                voice=audio_fp,
-                caption=text,
-                caption_entities=[e.to_dict() for e in entities],
-            )
-            logger.info("[chat=%s] Voice reply sent successfully", chat_id)
-        except Exception as e:
-            logger.exception(
-                "[chat=%s] TTS failed, falling back to text: %s", chat_id, e
-            )
+                    audio_fp.write(audio_bytes)
+                    audio_fp.seek(0)
+
+                else:
+                    # Default to gTTS
+                    from gtts import gTTS
+
+                    tts = gTTS(text=text_content, lang="en", slow=False)
+                    tts.write_to_fp(audio_fp)
+                    audio_fp.seek(0)
+
+                await update.message.reply_voice(  # type: ignore
+                    voice=audio_fp,
+                    caption=text,
+                    caption_entities=[e.to_dict() for e in entities],
+                    read_timeout=60,
+                    write_timeout=60,
+                )
+                logger.info("[chat=%s] Voice reply sent successfully", chat_id)
+            except Exception as e:
+                logger.exception(
+                    "[chat=%s] TTS failed, falling back to text: %s", chat_id, e
+                )
+                ent = [e.to_dict() for e in entities]
+                await update.message.reply_text(text, entities=ent)  # type: ignore
+        else:
             ent = [e.to_dict() for e in entities]
             await update.message.reply_text(text, entities=ent)  # type: ignore
-    else:
-        ent = [e.to_dict() for e in entities]
-        await update.message.reply_text(text, entities=ent)  # type: ignore
-        logger.info("[chat=%s] Reply sent successfully", chat_id)
+            logger.info("[chat=%s] Reply sent successfully", chat_id)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent.parent
 PID_DIR = ROOT / ".run"
 LOG_DIR = ROOT / ".logs"
 PID_DIR.mkdir(exist_ok=True)

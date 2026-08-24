@@ -18,7 +18,7 @@ class GoogleMusicGenerationProvider(MusicGenerationProvider):
         if not self.api_key:
             raise ValueError("Google Music Generation requires an api_key in config")
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, lyrics: str = "") -> str:
         logger.info("Generating music with Google model: %s", self.model)
         # Note: Actual audio generation API call would go here.
         # Returning a stub for the current implementation.

@@ -61,7 +61,7 @@ class ChatManager:
         message: str,
         retrieved_context: list[str],
         history: list[dict],
-    ) -> str:
+    ) -> tuple[str, list[dict]]:
         """Construct messages, enforce limits, and call the LLM in an agentic loop.
 
         Args:
@@ -70,19 +70,28 @@ class ChatManager:
             history: Conversation history list containing role/content dicts.
 
         Returns:
-            The assistant's generated message or an error/placeholder message.
+            A tuple containing:
+            - The assistant's final generated string message.
+            - A list of all new message dicts generated during the loop (tool
+              calls, tool results, and the final reply).
         """
         system_content = (
             f"Character:\n{self.character}\n\n---\n\n"
             f"Key Context:\n{self.context}\n\n---\n\n"
             "You must fully embody the Character described above. "
-            "If you need more information to answer the user's question, "
-            "use the available tools to search the lore memory. "
-            "If the context does not contain the answer, do not guess or "
+            "You have access to tools to search memory and perform actions. "
+            "Always use the appropriate tool when the user requests an action "
+            "or asks a question that requires one. "
+            "Do not simulate or roleplay the action without calling the tool "
+            "first. "
+            "CRITICAL: If a tool returns a markdown link or image, you MUST "
+            "include that exact markdown in your final response to the user. "
+            "If asked about lore and you do not know the answer, do not guess or "
             "make up information. "
             "Simply state that you do not know, while remaining in character. "
             "CRITICAL: Your final response MUST be under 3 sentences. "
-            "Be extremely brief.\n\n"
+            "Be extremely brief (unless you are returning generated song lyrics, "
+            "in which case you must include the full lyrics).\n\n"
         )
 
         # Include retrieved_context for backward compatibility if provided
@@ -100,10 +109,15 @@ class ChatManager:
             logger.warning("LLM API key not configured; returning placeholder message")
             return (
                 "LLM not configured: set OPENROUTER_API_KEY environment variable "
-                "or provide llm.api_key in config."
+                "or provide llm.api_key in config.",
+                [{"role": "assistant", "content": "LLM not configured"}],
             )
 
         max_steps = 5
+        # We track how many messages were there before we start adding
+        # assistant/tool messages
+        base_message_count = len(messages)
+
         for step in range(max_steps):
             # Trim history if needed
             try:
@@ -115,6 +129,7 @@ class ChatManager:
                         break
                     # If too large, remove the oldest non-system message
                     messages.pop(1)
+                    base_message_count = max(1, base_message_count - 1)
             except Exception as e:
                 logger.warning("Failed to count tokens or truncate history: %s", e)
 
@@ -136,6 +151,7 @@ class ChatManager:
                 }
                 if self.tools:
                     kwargs["tools"] = self.tools
+                    kwargs["tool_choice"] = "auto"
 
                 response = litellm.completion(**kwargs)
 
@@ -181,18 +197,24 @@ class ChatManager:
                         )
                     continue  # Continue the loop to let the LLM use the tool results
                 else:
-                    reply = response_message.content
+                    reply = response_message.content or ""
                     logger.info(
                         "LLM call successful in %.2fs — response=%d chars",
                         llm_elapsed,
                         len(reply) if reply else 0,
                     )
-                    return reply
+                    reply_msg = {"role": "assistant", "content": reply}
+                    new_messages = messages[base_message_count:] + [reply_msg]
+                    return reply, new_messages
             except Exception as e:
                 logger.exception("Error calling LLM (model=%s)", self.llm_model)
                 error_str = str(e)
                 if len(error_str) > 1000:
                     error_str = error_str[:1000] + "... [truncated]"
-                return f"Error calling LLM: {error_str}"
+                return f"Error calling LLM: {error_str}", [
+                    {"role": "assistant", "content": f"Error: {error_str}"}
+                ]
 
-        return "Error: Exceeded maximum tool execution steps."
+        return "Error: Exceeded maximum tool execution steps.", [
+            {"role": "assistant", "content": "Error: Exceeded steps"}
+        ]

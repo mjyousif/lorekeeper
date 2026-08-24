@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from src.core.tools.music_generation import get_music_generation_tool
@@ -23,15 +25,55 @@ def test_get_music_generation_tool_google_missing_key():
         get_music_generation_tool(config)
 
 
-def test_get_music_generation_tool_comfyui():
+class MockResponse:
+    def __init__(self, data):
+        self.data = data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def read(self):
+        return self.data
+
+
+@patch("src.core.tools.music_generation.comfyui.urllib.request.urlopen")
+def test_get_music_generation_tool_comfyui(mock_urlopen):
     """Test getting the ComfyUI music generation tool."""
-    config = {"provider": "comfyui", "url": "http://localhost:8188"}
-    schema, impl = get_music_generation_tool(config)
+    mock_urlopen.side_effect = [
+        MockResponse(b'{"prompt_id": "12345"}'),
+        MockResponse(
+            b'{"12345": {"outputs": {"107": {"audio": '
+            b'[{"filename": "song.mp3", "subfolder": "", "type": "output"}]}}}}'
+        ),
+    ]
+    config = {
+        "provider": "comfyui",
+        "url": "http://localhost:8188",
+        "workflow_file": "dummy.json",
+    }
+
+    with patch(
+        "builtins.open",
+        return_value=MockResponse(
+            '{"1": {"class_type": "TextEncode", "inputs": {"text": "dummy"}}}'
+        ),
+    ):
+        schema, impl = get_music_generation_tool(config)
 
     assert schema["function"]["name"] == "generate_music"
 
-    result = impl("an epic orchestral theme")
-    assert "ComfyUI music generation requested for prompt" in result
+    with patch(
+        "builtins.open",
+        return_value=MockResponse(
+            '{"1": {"class_type": "TextEncode", "inputs": {"text": "dummy"}}}'
+        ),
+    ):
+        result = impl("an epic orchestral theme")
+    assert "[Generated Audio]" in result
+    assert "song.mp3" in result
 
 
 def test_get_music_generation_tool_unknown():
