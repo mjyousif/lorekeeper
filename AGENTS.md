@@ -46,3 +46,7 @@ To prevent broken builds, CI failures, and wasted time, all AI agents working in
 * To avoid Windows script path canonicalization issues, run tests explicitly as a module: `uv run python -m pytest`.
 * Always run tests before committing.
 * Ensure code is explicitly formatted (`uv run ruff format .`) and passes linters (`uv run ruff check .`, `uv run python -m mypy src`) before finalizing work.
+
+### 4. Avoiding CI Collection Failures
+* **Module-Level Execution**: NEVER raise exceptions or execute side effects at the module level (e.g., checking environment variables, opening files). Doing so will cause `pytest` to fail during the test collection phase when it imports the module. Place configuration and validation checks inside initialization functions or entrypoints (e.g., `main()`).
+* **CI Environment Dependencies**: If you introduce tests that require optional dependency groups (e.g., `gradio` in the `ui` group), you MUST ensure the `.github/workflows/test.yml` file is updated to install those dependencies (e.g., adding `--group ui` to `uv sync`). Local tests passing is not enough; the CI environment must mirror the required dependencies.

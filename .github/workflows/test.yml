@@ -26,7 +26,7 @@ jobs:
 
       - name: Install dependencies with uv
         run: |
-          uv sync --group dev
+          uv sync --group dev --group ui
 
       - name: Run Linters and Static Analysis
         run: |

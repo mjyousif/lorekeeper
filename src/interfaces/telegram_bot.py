@@ -72,10 +72,6 @@ _init_tts_db()
 
 TELEGRAM_BOT_TOKEN = telegram_cfg.get("bot_token")
 
-if not TELEGRAM_BOT_TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN not set in config.telegram.bot_token")
-    raise RuntimeError("TELEGRAM_BOT_TOKEN not configured")
-
 
 @lru_cache()
 def get_wrapper() -> LoreKeeper:
@@ -612,6 +608,10 @@ async def post_init(application: Application):
 
 def main():
     """Start the Telegram bot."""
+    if not TELEGRAM_BOT_TOKEN:
+        logger.error("TELEGRAM_BOT_TOKEN not set in config.telegram.bot_token")
+        raise RuntimeError("TELEGRAM_BOT_TOKEN not configured")
+
     logger.info("Starting Telegram bot (token ending ...%s)", TELEGRAM_BOT_TOKEN[-6:])
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))

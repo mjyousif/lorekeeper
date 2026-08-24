@@ -14,15 +14,15 @@ Tests are located in the `tests/` directory and mirror the structure of the `src
 
 ## Running Tests
 
-To run the entire test suite, ensure your virtual environment is active and run:
+To run the entire test suite, ensure your virtual environment is active and all necessary dependency groups are installed (e.g., `uv sync --group dev --group ui`):
 
 ```shell
-pytest
+uv run python -m pytest tests/
 ```
 
 To run tests with output or for a specific file:
 ```shell
-pytest tests/test_wrapper.py -v
+uv run python -m pytest tests/test_wrapper.py -v
 ```
 
 ## Testing Philosophy
