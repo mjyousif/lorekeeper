@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.core.config import Config
-from src.interfaces.api import app, get_config
+from src.interfaces.api import app
 
 
 @pytest.fixture
@@ -29,14 +29,11 @@ def e2e_config(tmp_path):
 
 @pytest.fixture
 def client(e2e_config):
-    # Override get_config to return our e2e_config
-    app.dependency_overrides[get_config] = lambda: e2e_config
-
-    # We also need to clear the lru_cache on get_lorekeeper
-    # to ensure it picks up the new config
+    from src.core.wrapper import LoreKeeper
     from src.interfaces.api import get_lorekeeper
 
-    get_lorekeeper.cache_clear()
+    wrapper = LoreKeeper(e2e_config)
+    app.dependency_overrides[get_lorekeeper] = lambda: wrapper
 
     with TestClient(app) as c:
         yield c
